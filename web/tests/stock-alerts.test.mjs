@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {stockAlerts,watDay} from '../src/lib/stock-alerts.ts';
+const now=new Date('2026-11-03T23:30:00Z'),settings={lowStock:5,expiryDays:30,enabled:true};
+const batch={batch_id:'b',product_id:'p',label:'Demo milk',unit:'pack',perishable:true,expiry_date:'2026-12-04',estimated_qty:5,confirmed_at:now.toISOString()};
+test('WAT boundaries include today and final warning day',()=>{assert.equal(watDay(now),'2026-11-04');assert.deepEqual(stockAlerts([batch],settings,now).map(x=>x.kind),['Expiry approaching','Low stock']);assert.equal(stockAlerts([{...batch,expiry_date:'2026-12-05'}],settings,now).some(x=>x.kind==='Expiry approaching'),false);});
+test('expired and depleted stock never receive clearance suggestions',()=>{const a=stockAlerts([{...batch,expiry_date:'2026-11-03'}],settings,now);assert.equal(a[0].kind,'Expired — do not sell');assert.equal(a.some(x=>x.kind==='Expiry approaching'),false);assert.equal(stockAlerts([{...batch,estimated_qty:0}],settings,now).some(x=>x.kind==='Expiry approaching'),false);});
+test('missing dates, stale counts and nonperishable products are distinct',()=>{const a=stockAlerts([{...batch,expiry_date:null,confirmed_at:null}],settings,now);assert.ok(a.some(x=>x.kind==='Check expiry'));assert.ok(a.some(x=>x.kind==='Recount needed'));assert.equal(stockAlerts([{...batch,perishable:false}],settings,now).some(x=>x.kind==='Expiry approaching'),false);});
+test('quantities aggregate per product; repeat calculations and opt-out are stable',()=>{const batches=[batch,{...batch,batch_id:'c',estimated_qty:2}];assert.equal(stockAlerts(batches,settings,now).some(x=>x.kind==='Low stock'),false);assert.deepEqual(stockAlerts(batches,settings,now),stockAlerts(batches,settings,now));assert.deepEqual(stockAlerts(batches,{...settings,enabled:false},now),[]);});

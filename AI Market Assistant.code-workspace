@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "name": "AI Market Assistant",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.next": true
+    }
+  }
+}

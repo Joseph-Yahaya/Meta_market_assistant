@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+.local-demo
+.local-run
+.npm-cache
+tests
+*.log
+*.tsbuildinfo
