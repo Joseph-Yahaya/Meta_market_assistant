@@ -4,7 +4,7 @@ AI Market Assistant is intended to help traders record and confirm stock updates
 
 **Current demo scope:** fictional provision shops in Kubwa and a packaged-goods catalog. Kubwa is a sample location, not a permanent geographic restriction. The intended wider experience lets traders register shop locations and supported products and lets buyers search around a chosen location. Results require participating shops with current inventory; new areas may have no results. Location/category expansion and real-data onboarding still require implementation and validation beyond the current synthetic demo.
 
-**Current state:** the Railway synthetic demo is deployed. Hosted readiness, signup, live Muse Spark 1.3 interpretation through Responses, no stock write before confirmation, replay protection, buyer sold-out refresh, private-stock authorization, concurrent last-item oversell prevention and insights passed. Four local live extraction cases and 39 offline tests also passed. Visual screen verification, representative voice accuracy, broader reliability/backup checks and competition acceptance remain pending. This is not a production service or completed voice integration.
+**Current state:** the Railway synthetic demo is deployed. Live today: Muse Spark 1.3 text interpretation through Responses, trader and buyer voice transcription (English only), buyer search with live updates, deterministic stock alerts and the on-demand trader summary. Also verified: no stock write before confirmation, replay protection, buyer sold-out refresh, private-stock authorization and concurrent oversell prevention. All shops, stock and activity are simulated. Visual screen verification, non-English voice, broader reliability/backup checks and competition acceptance remain pending. This is not a production service.
 
 ## Run locally
 
@@ -47,11 +47,11 @@ This creates fictional test accounts and stock entries; it never provisions serv
 - Buyer discovery uses manual locations, straight-line distance and a list fallback. Leaflet/OpenStreetMap tiles load only on request with attribution. No route drawing or buyer account is required. Private counts, prices and phones are excluded from discovery responses.
 - Polling updates estimated availability. Stale physical counts and repeated negative reports suppress listings. Feedback never rewrites stock. Sales alone do not refresh a physical count.
 - Alerts and expiry guidance are deterministic, not a working AI forecast. Recorded revenue excludes missing-price allocations and is not profit. Weekly shop opens are counted once per search/shop, not unique people or proven visits; the initial week is partial.
-- Audio is not persisted by this app after transcription. Provider retention terms and representative English/Pidgin quality still require review before real usage.
+- Audio is not persisted by this app after transcription. Voice is verified in English only; Pidgin, Yoruba, Igbo and Hausa quality is untested. Provider retention terms still require review before real usage.
 
 ## Meta and Muse Code
 
-The current adapter defaults to `muse-spark-1.3` for extraction and `muse-voice-transcribe-1.0` for transcription. These are configuration defaults, not proof of authenticated access or the final required hackathon model. Confirm the required new model with the team, current provider documentation, available credits and account access before changing it or making a call.
+The app calls `muse-spark-1.3` for extraction and `muse-voice-transcribe-1.0` for transcription; both made live calls on the hosted demo (English voice only). Confirm the final required hackathon model, available credits and account access against current provider documentation before wider use.
 
 After the API-access gate is satisfied, set the key privately in `.env.local`, choose the verified model, and run `npm run check:meta`. That command makes a live, potentially billable text call even while `ENABLE_META_CALLS=false`; do not run it before checking credits. Enable application calls only after the smoke check. Then test actual extraction, ambiguous English/Pidgin inputs, provider failures and audio separately.
 
@@ -59,7 +59,7 @@ GitHub/Muse handoff, once the destination is confirmed: push reviewed source wit
 
 ## Railway demo
 
-Public app: https://ai-market-assistant-production.up.railway.app — buyer search: https://ai-market-assistant-production.up.railway.app/buyer. This is a synthetic hackathon demo, not a real-data pilot. Hosted readiness, live Spark interpretation, stock confirmation, replay protection, buyer updates, private-stock authorization and concurrent oversell prevention passed against PostgreSQL. Visual/voice and remaining release checks are tracked in task 06.
+Public app: https://ai-market-assistant-production.up.railway.app — buyer search: https://ai-market-assistant-production.up.railway.app/buyer. This is a synthetic hackathon demo, not a real-data pilot. Hosted readiness, live Spark interpretation, English voice for trader and buyer, stock confirmation, replay protection, buyer updates, private-stock authorization and concurrent oversell prevention passed against PostgreSQL. Remaining visual and release checks are tracked in task 06.
 
 `META_TEXT_PROTOCOL=responses` selects Meta's Responses API with the same strict schema and Spark model; `chat` preserves the Chat Completions path. Local live Responses extraction and incomplete-output rejection tests passed. Hosting protocol selection is tracked separately from model identity and permission to call it.
 
