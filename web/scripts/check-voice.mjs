@@ -29,7 +29,7 @@ if (audio.length < 44 || audio.length > 1500000 || audio.toString("ascii", 0, 4)
   console.error("FAIL: sample must be a WAV file under 1.5 MB.");
   process.exit(1);
 }
-async function post(path, { json, wav, cookie } = {}) {
+async function post(path, { json, cookie } = {}) {
   const headers = { Origin: origin };
   if (cookie) headers.Cookie = cookie;
   let body;
@@ -67,7 +67,7 @@ try {
     console.error(`FAIL: demo shop login refused (HTTP ${login.status}, ${login.code || "no code"}).`);
     process.exit(1);
   }
-  const said = await post(`/api/entries/transcribe?shopId=${shopId}`, { wav: true, cookie: login.cookie });
+  const said = await post(`/api/entries/transcribe?shopId=${shopId}`, { cookie: login.cookie });
   if (!said.ok) {
     console.error(`FAIL: transcription refused (HTTP ${said.status}, ${said.code || "no code"}). No stock was changed.`);
     process.exit(1);

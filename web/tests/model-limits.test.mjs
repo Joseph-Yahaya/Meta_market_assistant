@@ -12,9 +12,10 @@ test("daily caps default and honor valid env overrides", () => {
 });
 
 test("daily caps reject invalid env values", () => {
-  for (const raw of ["0", "-3", "1.5", "abc", "100001"]) {
+  for (const raw of ["0", "-3", "1.5", "abc", "100001", "100abc", "", "   ", "1e3", "5 packs", "0x10"]) {
     assert.equal(dailyCapFor("interpret", { MODEL_DAILY_CAP_INTERPRET: raw }), DAILY_CAP_DEFAULTS.interpret);
   }
+  assert.equal(dailyCapFor("interpret", { MODEL_DAILY_CAP_INTERPRET: " 5 " }), 5);
 });
 
 test("daily keys are UTC dates and limits trip only above the cap", () => {

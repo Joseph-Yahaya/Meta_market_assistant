@@ -12,8 +12,10 @@ const ENV_KEYS: Record<ModelScope | "global", string> = {
   global: "MODEL_DAILY_CAP_GLOBAL",
 };
 function parseCap(raw: string | undefined, fallback: number): number {
-  if (raw === undefined || raw === "") return fallback;
-  const value = Number.parseInt(raw, 10);
+  if (raw === undefined) return fallback;
+  const text = raw.trim();
+  if (!/^\d+$/.test(text)) return fallback;
+  const value = Number(text);
   if (!Number.isSafeInteger(value) || value < 1 || value > 100000) return fallback;
   return value;
 }
