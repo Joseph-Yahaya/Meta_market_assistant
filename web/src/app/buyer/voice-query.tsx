@@ -14,7 +14,7 @@ export default function VoiceQuery({enabled,onTranscript}:{enabled:boolean;onTra
       const offline=new OfflineAudioContext(1,Math.ceil(decoded.duration*24000),24000),source=offline.createBufferSource();source.buffer=decoded;source.connect(offline.destination);source.start();
       const converted=await offline.startRendering(),wav=pcmToWav(converted.getChannelData(0));
       const response=await fetch("/api/buyer/transcribe",{method:"POST",headers:{"Content-Type":"audio/wav"},body:new Uint8Array(wav),signal:AbortSignal.timeout(40000)});
-      const data=await response.json();if(!response.ok)throw new Error(data.error?.code==="META_NOT_CONFIGURED"?"Voice is not connected yet. Type your search instead.":"Transcription did not finish. Please type your search instead.");
+      const data=await response.json();if(!response.ok)throw new Error(data.error?.code==="META_NOT_CONFIGURED"?"Voice is not connected yet. Type your search instead.":data.error?.code==="DAILY_LIMIT_REACHED"?"Daily voice limit reached. Please type your search instead.":"Transcription did not finish. Please type your search instead.");
       if(mounted.current){onTranscript(data.transcript);setMessage("Check the transcript and choose the exact product before searching.");}
     }catch(error){if(mounted.current)setMessage(error instanceof Error?error.message:"Please type your search instead.");}
     finally{if(mounted.current)setBusy(false);}

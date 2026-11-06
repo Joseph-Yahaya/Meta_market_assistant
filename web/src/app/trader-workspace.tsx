@@ -23,7 +23,7 @@ const messages:Record<string,string>={
   INVALID_MODEL_RESPONSE:"AI returned an unclear entry. Please enter the details manually.",NO_CLEAR_TRANSCRIPT:"No clear speech was found. Try a short recording or type instead.",
   INSUFFICIENT_STOCK_RECOUNT_REQUIRED:"That sale exceeds available stock. Check the quantity or recount the batch first.",
   CONFIRMATION_EXPIRED:"This review expired. Review the details again before saving.",STOCK_CHANGED_REVIEW_AGAIN:"The batch changed while you were reviewing it. Refresh stock and recount again.",
-  INVALID_CONFIRMATION:"This review is no longer valid. Please create a new review.",TOO_MANY_ATTEMPTS:"Too many attempts. Please wait 15 minutes before trying again.",
+  INVALID_CONFIRMATION:"This review is no longer valid. Please create a new review.",TOO_MANY_ATTEMPTS:"Too many attempts. Please wait 15 minutes before trying again.",DAILY_LIMIT_REACHED:"Daily AI limit reached. Continue with the manual form below; limits reset tomorrow.",
   OPENING_EXISTS:"Opening stock already exists for this product. Use restock or recount instead.",INVALID_DATE:"Enter a valid date.",
   INVALID_BATCH:"Choose the correct batch for this product.",AUDIO_LIMIT_30_SECONDS:"Keep recordings to 30 seconds or less.",INVALID_WAV:"The recording could not be read. Try another recording or type instead.",
 };
@@ -39,7 +39,7 @@ const friendly=(error:unknown)=>error instanceof Error?(messages[error.message]|
 const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Lagos"});
 
 export default function TraderWorkspace() {
-  const [status,setStatus]=useState<{accountsConfigured:boolean;metaConfigured:boolean}|null>(null);
+  const [status,setStatus]=useState<{accountsConfigured:boolean;metaConfigured:boolean;textModel?:string;voiceModel?:string}|null>(null);
   const [authTab,setAuthTab]=useState<"login"|"signup">("login");
   const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false});
   const [shops,setShops]=useState<Shop[]>([]),[shopId,setShopId]=useState("");
@@ -49,7 +49,7 @@ export default function TraderWorkspace() {
   const [action,setAction]=useState<StockEntry["action"]>("sale"),[quantity,setQuantity]=useState("1"),[price,setPrice]=useState(""),[expiry,setExpiry]=useState("");
   const [batchId,setBatchId]=useState(""),[correction,setCorrection]=useState<string|null>(null),[review,setReview]=useState<Review|null>(null);
   const [clarification,setClarification]=useState(""),[clarified,setClarified]=useState(false),[suggestedUnit,setSuggestedUnit]=useState<string|null>(null),[unitChecked,setUnitChecked]=useState(false);
-  const [recording,setRecording]=useState(false),[audioConsent,setAudioConsent]=useState(false);
+  const [recording,setRecording]=useState(false),[audioConsent,setAudioConsent]=useState(false);const [processed,setProcessed]=useState<{transcript:string;action:string;quantity:string;unit:string;item:string}|null>(null);
   const discardRecording=useRef(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),mounted=useRef(true);
   const product=products.find(p=>p.id===productId),shop=shops.find(s=>s.id===shopId);
@@ -57,7 +57,7 @@ export default function TraderWorkspace() {
 
   useEffect(()=>{
     let active=true;mounted.current=true;
-    api<{accountsConfigured:boolean;metaConfigured:boolean}>("/api/status").then(value=>{if(active)setStatus(value);}).catch(()=>{if(active)setNotice("Could not reach the account service. Please refresh shortly.");});
+    api<{accountsConfigured:boolean;metaConfigured:boolean;textModel?:string;voiceModel?:string}>("/api/status").then(value=>{if(active)setStatus(value);}).catch(()=>{if(active)setNotice("Could not reach the account service. Please refresh shortly.");});
     api<{shops:Shop[]}>("/api/auth/session").then(data=>{if(active){setShops(data.shops);setShopId(data.shops[0]?.id||"");}}).catch(()=>{});
     return()=>{active=false;mounted.current=false;if(recordTimer.current)clearTimeout(recordTimer.current);if(recorder.current?.state==="recording")recorder.current.stop();stream.current?.getTracks().forEach(t=>t.stop());};
   },[]);
@@ -94,7 +94,7 @@ export default function TraderWorkspace() {
     try {
       const {extraction:e}=await post<{extraction:ExtractedEntry}>("/api/entries/interpret",{shopId,text});
       if(e.action)setAction(e.action);setQuantity(e.quantity===null?"":String(e.quantity));setPrice(e.unitPriceNaira||"");
-      setFilter(e.item);changeProduct("");setSuggestedUnit(e.unit);setClarified(false);
+      setFilter(e.item);changeProduct("");setSuggestedUnit(e.unit);setClarified(false);setProcessed(p=>({transcript:p?.transcript||"",action:e.action||"unclear",quantity:e.quantity===null?"unclear":String(e.quantity),unit:e.unit||"unclear",item:e.item||"unclear"}));
       setClarification(e.needsClarification?(e.question||"Some details are unclear. Correct the fields below before reviewing."):"");
       setNotice("Check the suggested details and choose the exact product below. Nothing has been saved.");
     }catch(error){setNotice(friendly(error));}finally{setBusy("");}
@@ -134,7 +134,7 @@ export default function TraderWorkspace() {
       source.buffer=decoded;source.connect(offline.destination);source.start();
       const rendered=await offline.startRendering(),wav=pcmToWav(rendered.getChannelData(0));
       const {transcript}=await api<{transcript:string}>(`/api/entries/transcribe?shopId=${shopId}`,{method:"POST",headers:{"Content-Type":"audio/wav"},body:new Uint8Array(wav)});
-      if(mounted.current){setText(transcript);setNotice("Transcript ready. Check the words before interpreting the entry. Nothing has been saved.");}
+      if(mounted.current){setText(transcript);setProcessed(p=>({transcript,action:p?.action||"",quantity:p?.quantity||"",unit:p?.unit||"",item:p?.item||""}));setNotice("Transcript ready. Check or edit the words in the text box before interpreting. Nothing has been saved.");}
     }catch(error){if(mounted.current)setNotice(friendly(error));}finally{if(mounted.current)setBusy("");}
   }
   async function startRecording() {
@@ -174,7 +174,7 @@ export default function TraderWorkspace() {
       <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><div className="work-grid"><section className="panel"><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
         <label className="text-entry">Type a sale, restock or recount<textarea maxLength={2000} rows={3} placeholder="Sold 3 packs of Indomie chicken noodles, 70g" value={text} onChange={e=>setText(e.target.value)}/></label>
         <div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||recording||!text.trim()||!status?.metaConfigured} onClick={interpret}>{busy==="interpret"?"Understanding…":"Interpret entry"}</button><span className="hint">{status?.metaConfigured?"Check every suggested field.":"AI is not connected. Use the manual form below."}</span></div>
-        <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/*" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>
+        <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/*" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>{processed&&<section className="review" aria-label="How this was processed"><h3>How this was processed</h3><p className="hint">Transcript is editable in the text box above. Nothing is saved until you confirm.</p><dl><div><dt>Transcript</dt><dd>{processed.transcript||"Typed entry (no recording)"}</dd></div><div><dt>Parsed</dt><dd>{processed.action||"-"} | {processed.quantity||"-"} {processed.unit||""} | {processed.item||"-"}</dd></div><div><dt>Models</dt><dd>{status?.textModel||"muse-spark-1.3"} (extract) + {status?.voiceModel||"muse-voice-transcribe-1.0"} (transcribe)</dd></div></dl></section>}
         <div className="divider"/><h3>Check or enter the details</h3>
         {clarification&&<div className="clarification"><p>{clarification}</p><label className="check"><input type="checkbox" checked={clarified} onChange={e=>setClarified(e.target.checked)}/><span>I have resolved the unclear details below.</span></label></div>}
         <form className="form-stack" onSubmit={prepare} onChange={()=>setReview(null)}>
