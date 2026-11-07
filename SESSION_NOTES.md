@@ -5,6 +5,18 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — voice accuracy built (awaiting owner browser check)
+
+- Built: keyword-biased transcription, improved browser capture, OGG
+  upload support, action-first flow with action-choice question,
+  mishearing list, filler stripping, 60-second undo, folder accuracy
+  mode in check-voice.mjs. Correction log designed, not built. No
+  database change, no reseed; no live Meta calls made from here.
+- Tests: full suite green including 8 new voice-accuracy lib tests and a
+  multi-batch undo-math SQL test. Lint clean, production build passes.
+- Committed on `next-phase` (not pushed). Manual browser checklist given
+  to the owner in chat.
+
 ## 7 November 2026 — O non-AI widening built (awaiting owner browser check)
 
 - Built: Distance selector removed; server-side 5→10→20 km widening with
@@ -81,7 +93,7 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   insight), starting with migration `007`.
 - Still pending from plan Step 0: local `npm run dev` browser check of the
   trader and buyer screens.
-- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one and O non-AI widening built and committed (owner browser checks pending); next is the key and image test when the owner says go.
+- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one, O non-AI widening and voice accuracy built and committed (owner browser checks pending); next is the key and image test when the owner says go.
 
 ## Open questions
 

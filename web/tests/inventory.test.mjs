@@ -189,6 +189,20 @@ test("stock just outside 5 km is excluded at 5 km and found at 10 km",async()=>{
   assert.equal(wide.rows.length,1);
   assert.ok(Number(wide.rows[0].distance_km)>5&&Number(wide.rows[0].distance_km)<10);
 });
+test("compensating recounts undo a multi-batch sale exactly",async()=>{
+  const early=await command("opening",5,"undo-opening",{expiry:day(30)});
+  await command("restock",5,"undo-restock");
+  await command("sale",7,"undo-sale");
+  const before=(await db.query("SELECT batch_id,qty_delta FROM stock_events WHERE event_type='sale' ORDER BY batch_id")).rows;
+  assert.equal(before.length,2);
+  for(let i=0;i<before.length;i++){
+    const current=(await db.query("SELECT estimated_qty FROM batch_stock WHERE batch_id=$1",[before[i].batch_id])).rows[0].estimated_qty;
+    await command("recount",current-before[i].qty_delta,`undo-recount-${i}`,{batch:before[i].batch_id});
+  }
+  assert.equal((await db.query("SELECT estimated_qty FROM batch_stock WHERE batch_id=$1",[early.batchId])).rows[0].estimated_qty,5);
+  assert.equal((await db.query("SELECT sum(estimated_qty)::int n FROM batch_stock")).rows[0].n,10);
+  assert.equal((await db.query("SELECT count(*)::int n FROM stock_events")).rows[0].n,6);
+});
 test("buyer records and digests store no raw coordinates",async()=>{
   const {queryDigest,visitorDigest}=await import("../src/lib/buyer.ts");
   const secret="c".repeat(32),visitor=visitorDigest("no-coords-visitor",secret);

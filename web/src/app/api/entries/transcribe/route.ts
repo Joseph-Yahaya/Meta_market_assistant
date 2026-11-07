@@ -4,6 +4,8 @@ import { ApiError, failure, json, requireSameOrigin } from "@/server/http";
 import { metaClient } from "@/server/meta";
 import { limitAuth, limitModelCall } from "@/server/accounts";
 import { MAX_AUDIO_BYTES, validateWav } from "@/lib/audio";
+import { buildVoiceKeywords } from "@/lib/voice-keywords";
+import { database } from "@/server/db";
 export const runtime="nodejs";
 export async function POST(request: Request) {
   try {
@@ -18,6 +20,8 @@ export async function POST(request: Request) {
     try {validateWav(audio);} catch(error) {throw new ApiError(400,(error as Error).message);}
     await limitAuth("transcribe",actor,20);await limitModelCall("transcribe",actor);
     // In-memory only: no filesystem, database audio, request-body logging or storage upload.
-    return json({transcript:await client.transcribe(audio),requiresReview:true});
+    const catalog=await database().query("SELECT brand, name FROM products LIMIT 200");
+    const keywords=buildVoiceKeywords(catalog.rows.map(r=>r.brand),catalog.rows.map(r=>r.name));
+    return json({transcript:await client.transcribe(audio,{keywords}),requiresReview:true});
   } catch(error) {return failure(error);}
 }

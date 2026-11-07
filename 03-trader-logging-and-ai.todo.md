@@ -50,6 +50,8 @@ A trader can onboard, record a sale/restock/recount by supported voice or text, 
 
 Built: trader signup/login/logout, shop setup, stock dashboard, manual/text/voice entry code, canonical product selection, expiring review, safe confirmations and batch recount/correction. Local API flow verification passed. See evidence and pending gates below; do not mark the entire task complete.
 
+Voice accuracy (7 November 2026): transcription now sends languageBias English plus catalog/action keyword biasing (reference checked; no provider keyword limit published, self-capped at 100). Browser capture uses echo cancellation and noise suppression with volume normalisation and silence trimming; uploads accept WhatsApp .ogg via in-browser decode to 24 kHz mono WAV. Action-first buttons with preset-aware interpretation, mishearing-triggered action question, filler stripping, and 60-second compensating-event undo. check-voice.mjs gained a folder accuracy mode reporting action/quantity/product pass rates. Correction log designed only. Evidence: automated tests, lint and build (see session notes); owner browser checklist pending.
+
 ## Implemented behavior and evidence
 
 - Added trader signup, login and logout, shop setup, an owner stock dashboard, recent history, manual/text entry, voice recording/upload code, canonical product selection, review and recount/correction flows. Buyers have no signup requirement; buyer discovery pages are task 04.
@@ -77,6 +79,16 @@ Commands run from `web/`:
 Verified on 3 November 2026 after the final recording-discard change: **25 tests passed, ESLint passed, and the production build passed**. The complete local API flow passed signup/login, cross-owner rejection, prepare-without-write, confirmation replay, sale, recount, stale-review rejection, overselling rejection, logout and explicit AI-disabled fallback. Provider tests are mocked; they do not establish model accuracy or real account access.
 
 Official integration references checked on 3 November 2026: [structured text output](https://dev.meta.ai/docs/structured-output), [voice transcription](https://dev.meta.ai/docs/speech-to-text) and [Meta quickstart](https://dev.meta.ai/docs/quickstart).
+
+## Privacy-safe correction log (designed 7 November 2026, not built)
+
+Purpose: learn which words speech recognition mishears so prompts and keyword bias improve, without storing anything identifiable.
+
+- Stored per correction: the heard word, the corrected word, and an occurrence count. Nothing else: no audio, no full sentences, no transcripts, no shop or product linkage, no day-by-day trail.
+- Consent first: the trader opts in with explicit text before anything is sent, for example: "Help improve voice recognition by sharing corrected words. Only the two words and a count are stored, never audio or sentences. You can opt out at any time." Default is off; no silent sending.
+- API sketch: `POST /api/voice/corrections` with shop, heard word and corrected word. Server validates one or two lowercase words each, maximum 40 characters, rejects digit-heavy strings that look like phone numbers or codes, and upserts the pair count. Owner session required, daily per-account cap.
+- Abuse and retention: counts are aggregates from the start (no raw-event table to clean later). Validation rejects sentences, long text and non-word input.
+- Open before building: final consent wording (owner to approve), whether corrections from buyer voice are ever included (no for now), and who reviews the counts and how often.
 
 ## Remaining checks and contextual reminders
 

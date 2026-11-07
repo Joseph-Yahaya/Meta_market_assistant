@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import StockInsights from "./stock-insights";
-import { pcmToWav } from "@/lib/audio";
+import { pcmToWav, normaliseVolume, trimSilence } from "@/lib/audio";
+import { cleanEntryText, likelyAction } from "@/lib/entry-text";
 import { locationErrorMessage } from "@/lib/geolocation";
 import { nairaToKobo } from "@/lib/money";
 import type { StockEntry } from "@/lib/entries";
@@ -25,7 +26,7 @@ const messages:Record<string,string>={
   INSUFFICIENT_STOCK_RECOUNT_REQUIRED:"That sale exceeds available stock. Check the quantity or recount the batch first.",
   CONFIRMATION_EXPIRED:"This review expired. Review the details again before saving.",STOCK_CHANGED_REVIEW_AGAIN:"The batch changed while you were reviewing it. Refresh stock and recount again.",
   INVALID_CONFIRMATION:"This review is no longer valid. Please create a new review.",TOO_MANY_ATTEMPTS:"Too many attempts. Please wait 15 minutes before trying again.",DAILY_LIMIT_REACHED:"Daily AI limit reached. Continue with the manual form below; limits reset tomorrow.",
-  OPENING_EXISTS:"Opening stock already exists for this product. Use restock or recount instead.",INVALID_DATE:"Enter a valid date.",
+  UNDO_EXPIRED:"That entry is older than a minute and can no longer be undone. Correct it with a recount.",UNDO_BLOCKED:"This entry cannot be undone because stock changed afterwards. Correct it with a recount.",AUDIO_UNREADABLE:"This audio file could not be decoded in your browser. Try a WAV or MP3 file instead.",OPENING_EXISTS:"Opening stock already exists for this product. Use restock or recount instead.",INVALID_DATE:"Enter a valid date.",
   INVALID_BATCH:"Choose the correct batch for this product.",AUDIO_LIMIT_30_SECONDS:"Keep recordings to 30 seconds or less.",INVALID_WAV:"The recording could not be read. Try another recording or type instead.",
 };
 async function api<T>(path:string,options?:RequestInit):Promise<T> {
@@ -52,6 +53,7 @@ export default function TraderWorkspace() {
   const [clarification,setClarification]=useState(""),[clarified,setClarified]=useState(false),[suggestedUnit,setSuggestedUnit]=useState<string|null>(null),[unitChecked,setUnitChecked]=useState(false);
   const [recording,setRecording]=useState(false),[audioConsent,setAudioConsent]=useState(false);const [processed,setProcessed]=useState<{transcript:string;action:string;quantity:string;unit:string;item:string}|null>(null);
   const [locating,setLocating]=useState(false),[pinFromDevice,setPinFromDevice]=useState(false);
+  const [actionPreset,setActionPreset]=useState<"sale"|"restock"|"recount"|null>(null),[askAction,setAskAction]=useState<{highlight:"sale"|"restock"|null;heard:string|null}|null>(null),[undo,setUndo]=useState<{commandId:string;left:number}|null>(null);
   const discardRecording=useRef(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),mounted=useRef(true);
   const product=products.find(p=>p.id===productId),shop=shops.find(s=>s.id===shopId);
@@ -75,6 +77,11 @@ export default function TraderWorkspace() {
     }
     void load();return()=>{active=false;};
   },[shopId,refresh]);
+  useEffect(()=>{
+    if(!undo)return;
+    const timer=setTimeout(()=>setUndo(u=>u&&u.left>1?{...u,left:u.left-1}:null),1000);
+    return()=>clearTimeout(timer);
+  },[undo]);
 
   function setShopPin(){
     if(!("geolocation" in navigator)){setNotice(locationErrorMessage(2,"keep the demo pin"));return;}
@@ -99,13 +106,26 @@ export default function TraderWorkspace() {
     catch(error){setNotice(friendly(error));}finally{setBusy("");}
   }
   function changeProduct(id:string) {setExpiry("");setProductId(id);setBatchId("");setCorrection(null);setReview(null);setUnitChecked(false);}
+  const actionLabel={sale:"Sale",restock:"Restock",recount:"Recount"} as const;
+  function actionIcon(value:"sale"|"restock"|"recount"){
+    if(value==="sale")return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2v10m0 0L5 8m4 4l4-4M3 15h12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    if(value==="restock")return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 16V6m0 0L5 10m4-4l4 4M3 3h12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    return <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M6 9l3 3 5-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  }
+  function pickAction(value:"sale"|"restock"|"recount"){setActionPreset(value);setAction(value);setAskAction(null);setNotice(`Action set to ${actionLabel[value]}. Say or type just the product and quantity.`);}
+  function actionButtons(highlight:"sale"|"restock"|"recount"|null){
+    return (["sale","restock","recount"] as const).map(value=><button key={value} type="button" className={`action-pick${value===highlight?" suggested":""}`} aria-pressed={actionPreset===value} onClick={()=>pickAction(value)}>{actionIcon(value)}<span>{actionLabel[value]}</span></button>);
+  }
   async function interpret() {
     setBusy("interpret");setNotice("");setReview(null);
     try {
-      const {extraction:e}=await post<{extraction:ExtractedEntry}>("/api/entries/interpret",{shopId,text});
+      const {text:cleaned}=cleanEntryText(text);
+      if(!cleaned.trim()){setNotice("Say or type the product and quantity first.");return;}
+      const {extraction:e}=await post<{extraction:ExtractedEntry}>("/api/entries/interpret",{shopId,text:cleaned,...(actionPreset?{actionPreset}:{})});
       if(e.action)setAction(e.action);setQuantity(e.quantity===null?"":String(e.quantity));setPrice(e.unitPriceNaira||"");
       setFilter(e.item);changeProduct("");setSuggestedUnit(e.unit);setClarified(false);setProcessed(p=>({transcript:p?.transcript||"",action:e.action||"unclear",quantity:e.quantity===null?"unclear":String(e.quantity),unit:e.unit||"unclear",item:e.item||"unclear"}));
       setClarification(e.needsClarification?(e.question||"Some details are unclear. Correct the fields below before reviewing."):"");
+      if(e.needsClarification&&!e.action){const guess=likelyAction(text);setAskAction({highlight:guess?.action??null,heard:guess?.heard??null});}else setAskAction(null);
       setNotice("Check the suggested details and choose the exact product below. Nothing has been saved.");
     }catch(error){setNotice(friendly(error));}finally{setBusy("");}
   }
@@ -113,6 +133,7 @@ export default function TraderWorkspace() {
     event.preventDefault();setNotice("");setReceipt("");
     if(!product){setNotice("Choose the exact product and pack size first.");return;}
     if(clarification&&!clarified){setNotice("Resolve the unclear details before reviewing.");return;}
+    if(askAction){setNotice("Choose the action first: Sale, Restock or Recount.");return;}
     if(mismatch&&!unitChecked){setNotice(`Confirm that the quantity is in ${product.unit}s, not ${suggestedUnit}s.`);return;}
     const count=Number(quantity);
     if(!quantity.trim()||!Number.isSafeInteger(count)||count<0||count>100000||(["sale","restock"].includes(action)&&count===0)){setNotice("Enter a whole quantity within 0–100,000; sales and restocks must be above zero.");return;}
@@ -123,12 +144,19 @@ export default function TraderWorkspace() {
       setReview(await post<Review>("/api/entries/prepare",{shopId,entry}));
     }catch(error){setNotice(error instanceof Error&&error.message.startsWith("Use a price")?error.message:friendly(error));}finally{setBusy("");}
   }
+  async function undoEntry() {
+    if(!undo)return;setBusy("undo");setNotice("");
+    try {
+      const result=await post<{estimatedQty:number}>("/api/entries/undo",{shopId,commandId:undo.commandId});
+      setReceipt(`Entry undone. The reversal is recorded in history; estimate is now ${result.estimatedQty}.`);setUndo(null);setRefresh(v=>v+1);
+    }catch(error){setNotice(friendly(error));if(error instanceof Error&&["UNDO_EXPIRED","UNDO_BLOCKED"].includes(error.message))setUndo(null);}finally{setBusy("");}
+  }
   async function confirm() {
     if(!review)return;setBusy("confirm");setNotice("");
     try {
-      const result=await post<{estimatedQty:number;replayed:boolean}>("/api/entries/confirm",{token:review.token});
+      const result=await post<{estimatedQty:number;replayed:boolean;commandId:string}>("/api/entries/confirm",{token:review.token});
       setReceipt(result.replayed?"This entry was already recorded. No second change was made.":`${review.entry.action==="recount"?"Recount":"Stock entry"} recorded. ${label(review.product)}: ${result.estimatedQty} ${review.product.unit}s estimated across batches.`);
-      setReview(null);setCorrection(null);setRefresh(v=>v+1);
+      setReview(null);setCorrection(null);setRefresh(v=>v+1);setUndo(!result.replayed&&result.commandId?{commandId:result.commandId,left:60}:null);
     }catch(error){setNotice(friendly(error));if(error instanceof Error&&["CONFIRMATION_EXPIRED","STOCK_CHANGED_REVIEW_AGAIN","INVALID_CONFIRMATION"].includes(error.message))setReview(null);}
     finally{setBusy("");}
   }
@@ -138,11 +166,14 @@ export default function TraderWorkspace() {
       if(blob.size>4000000)throw new Error("AUDIO_LIMIT_30_SECONDS");
       const context=new AudioContext();
       let decoded:AudioBuffer;
-      try {decoded=await context.decodeAudioData(await blob.arrayBuffer());}finally{await context.close();}
+      try {decoded=await context.decodeAudioData(await blob.arrayBuffer());}catch{throw new Error("AUDIO_UNREADABLE");}finally{await context.close();}
       if(decoded.duration>30.2||decoded.duration<=0)throw new Error("AUDIO_LIMIT_30_SECONDS");
       const offline=new OfflineAudioContext(1,Math.ceil(decoded.duration*24000),24000),source=offline.createBufferSource();
       source.buffer=decoded;source.connect(offline.destination);source.start();
-      const rendered=await offline.startRendering(),wav=pcmToWav(rendered.getChannelData(0));
+      const rendered=await offline.startRendering();
+      const cleaned=trimSilence(normaliseVolume(rendered.getChannelData(0)));
+      if(cleaned.length<7200)throw new Error("NO_CLEAR_TRANSCRIPT");
+      const wav=pcmToWav(cleaned);
       const {transcript}=await api<{transcript:string}>(`/api/entries/transcribe?shopId=${shopId}`,{method:"POST",headers:{"Content-Type":"audio/wav"},body:new Uint8Array(wav)});
       if(mounted.current){setText(transcript);setProcessed(p=>({transcript,action:p?.action||"",quantity:p?.quantity||"",unit:p?.unit||"",item:p?.item||""}));setNotice("Transcript ready. Check or edit the words in the text box before interpreting. Nothing has been saved.");}
     }catch(error){if(mounted.current)setNotice(friendly(error));}finally{if(mounted.current)setBusy("");}
@@ -151,7 +182,7 @@ export default function TraderWorkspace() {
     if(!audioConsent){setNotice("Confirm you want to send audio to Meta first.");return;}
     try {
       if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){setNotice("Recording is unavailable in this browser. Upload a short audio file or type instead.");return;}
-      stream.current=await navigator.mediaDevices.getUserMedia({audio:true});
+      stream.current=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       const instance=new MediaRecorder(stream.current),chunks:Blob[]=[];recorder.current=instance;discardRecording.current=false;
       instance.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
       instance.onstop=()=>{if(recordTimer.current)clearTimeout(recordTimer.current);stream.current?.getTracks().forEach(t=>t.stop());if(mounted.current){setRecording(false);if(!discardRecording.current)void sendAudio(new Blob(chunks,{type:instance.mimeType}));}chunks.length=0;};
@@ -180,17 +211,18 @@ export default function TraderWorkspace() {
       <div className="dashboard-heading"><div><span className="eyebrow">TRADER WORKSPACE</span><h1>{shop.name}</h1><p className="muted">{shop.landmark}</p></div><button className="secondary" onClick={()=>setRefresh(v=>v+1)} disabled={Boolean(busy)}>Refresh stock</button></div>
       {shops.length>1&&<label>Choose your shop<select value={shopId} onChange={e=>{setShopId(e.target.value);setReview(null);setReceipt("");}}>{shops.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
       <div className="stats"><div><span>Products with stock</span><strong>{new Set(stock.filter(b=>b.estimated_qty>0).map(b=>b.product_id)).size}</strong></div><div><span>Batches tracked</span><strong>{stock.length}</strong></div><div><span>Location status</span><strong className="small-stat">{shop.location_verified?"Verified":"Needs verification"}</strong></div></div>
-      {notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}
+      {notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}{undo&&<div className="inline-actions"><button className="secondary" disabled={Boolean(busy)} onClick={undoEntry}>Undo this entry ({undo.left}s)</button></div>}
       <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><div className="work-grid"><section className="panel"><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
-        <label className="text-entry">Type a sale, restock or recount<textarea maxLength={2000} rows={3} placeholder="Sold 3 packs of Indomie chicken noodles, 70g" value={text} onChange={e=>setText(e.target.value)}/></label>
+        <div className="action-first" role="group" aria-label="Choose the action first"><span className="hint">First, what happened?</span><div className="inline-actions">{actionButtons(null)}</div></div><label className="text-entry">Type a sale, restock or recount<textarea maxLength={2000} rows={3} placeholder="Sold 3 packs of Indomie chicken noodles, 70g" value={text} onChange={e=>setText(e.target.value)}/></label>
         <div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||recording||!text.trim()||!status?.metaConfigured} onClick={interpret}>{busy==="interpret"?"Understanding…":"Interpret entry"}</button><span className="hint">{status?.metaConfigured?"Check every suggested field.":"AI is not connected. Use the manual form below."}</span></div>
-        <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/*" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>{processed&&<section className="review" aria-label="How this was processed"><h3>How this was processed</h3><p className="hint">Transcript is editable in the text box above. Nothing is saved until you confirm.</p><dl><div><dt>Transcript</dt><dd>{processed.transcript||"Typed entry (no recording)"}</dd></div><div><dt>Parsed</dt><dd>{processed.action||"-"} | {processed.quantity||"-"} {processed.unit||""} | {processed.item||"-"}</dd></div><div><dt>Models</dt><dd>{status?.textModel||"muse-spark-1.3"} (extract) + {status?.voiceModel||"muse-voice-transcribe-1.0"} (transcribe)</dd></div></dl></section>}
+        <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. WhatsApp voice notes (.ogg) work: they are decoded and converted in your browser before upload. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/opus,audio/webm,.wav,.mp3,.m4a,.ogg,.opus,.webm" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>{processed&&<section className="review" aria-label="How this was processed"><h3>How this was processed</h3><p className="hint">Transcript is editable in the text box above. Nothing is saved until you confirm.</p><dl><div><dt>Transcript</dt><dd>{processed.transcript||"Typed entry (no recording)"}</dd></div><div><dt>Parsed</dt><dd>{processed.action||"-"} | {processed.quantity||"-"} {processed.unit||""} | {processed.item||"-"}</dd></div><div><dt>Models</dt><dd>{status?.textModel||"muse-spark-1.3"} (extract) + {status?.voiceModel||"muse-voice-transcribe-1.0"} (transcribe)</dd></div></dl></section>}
+        {askAction&&<section className="review" aria-label="Choose the action"><h3>Which action did you mean?</h3><p>{askAction.heard?`I heard \u201C${askAction.heard}\u201D. Did you mean ${askAction.highlight==="sale"?"Sale":"Restock"}?`:"The action was unclear, so nothing was applied. Tap the right one."}</p><div className="inline-actions">{actionButtons(askAction.highlight)}</div></section>}
         <div className="divider"/><h3>Check or enter the details</h3>
         {clarification&&<div className="clarification"><p>{clarification}</p><label className="check"><input type="checkbox" checked={clarified} onChange={e=>setClarified(e.target.checked)}/><span>I have resolved the unclear details below.</span></label></div>}
         <form className="form-stack" onSubmit={prepare} onChange={()=>setReview(null)}>
           <label>Find a product<input placeholder="Brand, name or pack size" value={filter} onChange={e=>setFilter(e.target.value)}/></label>
           <label>Exact product and size<select required value={productId} onChange={e=>changeProduct(e.target.value)}><option value="">Choose a product</option>{filtered.map(p=><option key={p.id} value={p.id}>{label(p)} · {p.unit}</option>)}</select></label>{!filtered.length&&<p className="hint">No matching product. Clear or shorten the filter to see the catalog.</p>}
-          <div className="field-row"><label>Action<select value={action} onChange={e=>{setAction(e.target.value as StockEntry["action"]);setCorrection(null);}}><option value="sale">Sale</option><option value="restock">Restock</option><option value="recount">Recount / correction</option><option value="opening">Opening stock</option></select></label><label>{action==="recount"?"Physical batch count":"Quantity"}{product?` (${product.unit}s)`:""}<input required type="number" step={1} min={action==="sale"||action==="restock"?1:0} max={100000} value={quantity} onChange={e=>{setQuantity(e.target.value);setUnitChecked(false);}}/></label></div>
+          <div className="field-row"><label>Action<select value={action} onChange={e=>{setAction(e.target.value as StockEntry["action"]);setCorrection(null);setActionPreset(null);}}><option value="sale">Sale</option><option value="restock">Restock</option><option value="recount">Recount / correction</option><option value="opening">Opening stock</option></select></label><label>{action==="recount"?"Physical batch count":"Quantity"}{product?` (${product.unit}s)`:""}<input required type="number" step={1} min={action==="sale"||action==="restock"?1:0} max={100000} value={quantity} onChange={e=>{setQuantity(e.target.value);setUnitChecked(false);}}/></label></div>
           {mismatch&&<label className="check"><input type="checkbox" checked={unitChecked} onChange={e=>setUnitChecked(e.target.checked)}/><span>The suggestion used {suggestedUnit}s. I corrected the quantity to {product?.unit}s. No automatic pack conversion is applied.</span></label>}
           {action==="recount"?<><label>Batch being counted<select required value={batchId} onChange={e=>{setBatchId(e.target.value);setCorrection(null);}}><option value="">Choose the batch</option>{ownedBatches.map(b=><option key={b.batch_id} value={b.batch_id}>{b.expiry_date?`Expires ${b.expiry_date.slice(0,10)}`:"No expiry recorded"} · estimated {b.estimated_qty}</option>)}</select></label>{correction&&<p className="hint">This recount will reference the selected recent entry. The old entry stays in the history.</p>}</>:<label>Price per {product?.unit||"selling unit"} (₦, optional)<input inputMode="decimal" placeholder="e.g. 250.00" value={price} onChange={e=>setPrice(e.target.value)}/></label>}
           {["opening","restock"].includes(action)&&product?.perishable&&<label>Batch expiry (optional)<input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></label>}

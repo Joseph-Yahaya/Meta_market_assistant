@@ -58,9 +58,9 @@ export function createMetaClient(config:{key:string;baseUrl?:string;textModel?:s
         return validateExtraction(parsed);
       } catch(error) {if(error instanceof MetaError)throw error;throw new MetaError("META_TIMEOUT_OR_NETWORK");}
     },
-    async transcribe(audio: Uint8Array): Promise<string> {
+    async transcribe(audio: Uint8Array,options?:{keywords?:string[]}): Promise<string> {
       const form=new FormData();
-      form.set("request",new Blob([JSON.stringify({mode:"PUSH_TO_TALK",model:config.voiceModel||"muse-voice-transcribe-1.0",audioEncoding:"WAV",languageBias:["English"]})],{type:"application/json"}));
+      const settings:{mode:string;model:string;audioEncoding:string;languageBias:string[];keywords?:string[]}={mode:"PUSH_TO_TALK",model:config.voiceModel||"muse-voice-transcribe-1.0",audioEncoding:"WAV",languageBias:["English"]};if(options?.keywords?.length)settings.keywords=options.keywords;form.set("request",new Blob([JSON.stringify(settings)],{type:"application/json"}));
       form.set("audio",new Blob([new Uint8Array(audio)],{type:"audio/wav"}),"entry.wav");
       try {
         const response=await fetcher(`${base}/asr/transcribe`,{method:"POST",headers:{Authorization:`Bearer ${config.key}`},body:form,signal:AbortSignal.timeout(30000)});

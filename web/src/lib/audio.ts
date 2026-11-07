@@ -18,6 +18,28 @@ export function validateWav(bytes: Uint8Array) {
   }
   if(!formatFound || !dataFound || dataBytes===0 || dataBytes/(rate*2)>30)throw new Error("AUDIO_LIMIT_30_SECONDS");
 }
+// Peak-normalise quiet recordings so soft speech is audible. Near-silent
+// input is returned unchanged so background noise is not amplified.
+export function normaliseVolume(samples: Float32Array,targetPeak=0.89): Float32Array {
+  let peak=0;
+  for(const s of samples){const a=Math.abs(s);if(a>peak)peak=a;}
+  if(peak<0.02||peak>=targetPeak)return samples;
+  const gain=targetPeak/peak,out=new Float32Array(samples.length);
+  for(let i=0;i<samples.length;i++)out[i]=samples[i]*gain;
+  return out;
+}
+// Trim leading and trailing silence (10 ms frames under -34 dB RMS),
+// keeping a short margin so word edges are never clipped.
+export function trimSilence(samples: Float32Array,rate=24000,marginMs=150): Float32Array {
+  const frame=Math.max(1,Math.floor(rate/100)),margin=Math.floor(rate*marginMs/1000);
+  const loud=(from:number)=>{const end=Math.min(samples.length,from+frame);let sum=0;for(let j=from;j<end;j++)sum+=samples[j]*samples[j];return Math.sqrt(sum/(end-from))>0.02;};
+  let start=0,end=samples.length,found=false;
+  while(start<end){if(loud(start)){found=true;break;}start+=frame;}
+  if(!found)return new Float32Array(0);
+  while(end>start&&!loud(Math.max(start,end-frame)))end-=frame;
+  start=Math.max(0,start-margin);end=Math.min(samples.length,end+margin);
+  return start>=end?new Float32Array(0):samples.slice(start,end);
+}
 export function pcmToWav(samples: Float32Array,rate=24000): Uint8Array {
   const buffer=new ArrayBuffer(44+samples.length*2),view=new DataView(buffer);
   const word=(offset:number,text:string)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i));};
