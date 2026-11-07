@@ -5,6 +5,15 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — Q and N acceptance recorded (design only, not built)
+
+- Owner supplied acceptance criteria: 7 items for Q (shared image
+  pipeline), 11 for N (add a product by photo). Recorded verbatim in
+  BUILD_PLAN.md. Notable: new "bottle" unit in N(4), 10-products-a-day
+  cap still to confirm in N(7), storage location open in Q(7).
+- Probe script committed separately first (key-free, verified). Docs
+  committed on `next-phase` (not pushed). Nothing built.
+
 ## 7 November 2026 — free-text multi-variant search built (awaiting owner browser check)
 
 - Built: type-and-find without dropdown picking, keyword matching with

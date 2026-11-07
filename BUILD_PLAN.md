@@ -118,7 +118,18 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - Key and image test passed 7 November 2026: muse-spark-1.3 accepts image input, so N takes the photo-first path.
 - The AI proposes name, brand, size, unit and category; the trader confirms with large yes/no buttons and picture-based unit choices, with no typing.
 - New products are auto-checked and usable by the shop immediately; anything flagged goes to the owner for review, and products are visible to buyers only after validation: length limits, duplicate check, rate limits, safety checks, injection-safe handling. Category and regulated-goods rules stay in code. In-scope categories now include household and personal care; medicines and regulated goods are excluded (owner decision, 7 November 2026). Store cropped trader product photos.
-- Acceptance: to be agreed with the owner before building.
+- Acceptance (owner, 7 November 2026):
+  1. When a typed or spoken product matches nothing, the trader sees a large "Not in your list. Add it with a photo" button.
+  2. The phone camera opens for one required photo, with an optional "show the back" step.
+  3. The AI proposes name, brand, size, unit and category, shown as a card with the photo and big Yes / No buttons.
+  4. The unit is chosen from picture buttons (piece, pack, carton, bottle) with the AI's guess preselected, and no typing is required.
+  5. Before creating anything, the app shows the closest existing catalog products ("Is it one of these?").
+  6. Medicines and regulated goods are refused with a plain message and never added.
+  7. A trader can add at most 10 new products a day (owner to confirm).
+  8. The new product works for that shop immediately, stays hidden from buyers until automatic checks pass, and anything flagged goes to a simple owner review list where the owner approves or rejects.
+  9. The trader confirms every product before it is saved.
+  10. If the AI fails, the trader can type a name instead and still use the picture-based unit buttons.
+  11. Automated tests plus a short manual browser checklist.
 
 ### Feature O: smarter buyer search
 - Non-AI part built early on 7 November 2026: radius selector removed, server widens 5→10→20 km automatically with a clear message. Free-text multi-variant matching added the same day, still without AI. AI query interpretation still pending.
@@ -136,7 +147,14 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 ### Feature Q: shared image pipeline
 - One pipeline built before the photo parts of N, H and P: type and size validation, metadata stripping, resizing, safety check, AI call, storage decision. Storage rule (owner decision, 7 November 2026): store cropped trader product photos; buyer photos only if included in an alert and only briefly.
 - Key and image test passed 7 November 2026: the AI-call step can use muse-spark-1.3 vision.
-- Acceptance: to be agreed with the owner before building.
+- Acceptance (owner, 7 November 2026):
+  1. Only JPEG, PNG and WebP are accepted, checked by file content not file name; anything else gets a plain message.
+  2. Images are resized in the browser to at most 1280 px and re-encoded, which removes hidden location data, and the server re-checks size and type.
+  3. Image calls count against the same daily model limits and rate limits as other AI calls.
+  4. The AI call returns structured fields that are validated; any text inside a photo is treated as data and never as instructions; a photo that is not a product is rejected.
+  5. Nothing is saved automatically, and original photos are discarded.
+  6. If the AI call fails or times out, the user sees a clear message and the text path still works.
+  7. Tests cover wrong file types, oversize files, metadata removal, text-in-photo injection and rate limits. Storage location is an open decision because no hosting exists yet.
 
 ### Feature R: location and routing (replaces Feature I)
 - Part one (build first): buyers get "Use my location" plus a draggable pin and area/landmark fallback. No typed coordinates for normal users; no raw coordinates stored. Traders set their shop pin at sign-up by tapping "Set my shop location here". A "Get directions" button opens the buyer's own maps app. Straight-line distance and the landmark stay as the measure and fallback.
