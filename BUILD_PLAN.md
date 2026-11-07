@@ -115,6 +115,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 ### Feature N: trader-added products (photo-first, no typing)
 - Traders can add products outside the fixed catalog. If nothing matches, the trader photographs the product: one required photo, optional guided extra angles.
 - The key and image test verifies whether the Meta API accepts images before building; if not, fall back to voice naming plus picture-based units. Barcode scanning is deferred (owner decision, 7 November 2026).
+- Key and image test passed 7 November 2026: muse-spark-1.3 accepts image input, so N takes the photo-first path.
 - The AI proposes name, brand, size, unit and category; the trader confirms with large yes/no buttons and picture-based unit choices, with no typing.
 - New products are auto-checked and usable by the shop immediately; anything flagged goes to the owner for review, and products are visible to buyers only after validation: length limits, duplicate check, rate limits, safety checks, injection-safe handling. Category and regulated-goods rules stay in code. In-scope categories now include household and personal care; medicines and regulated goods are excluded (owner decision, 7 November 2026). Store cropped trader product photos.
 - Acceptance: to be agreed with the owner before building.
@@ -134,6 +135,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 
 ### Feature Q: shared image pipeline
 - One pipeline built before the photo parts of N, H and P: type and size validation, metadata stripping, resizing, safety check, AI call, storage decision. Storage rule (owner decision, 7 November 2026): store cropped trader product photos; buyer photos only if included in an alert and only briefly.
+- Key and image test passed 7 November 2026: the AI-call step can use muse-spark-1.3 vision.
 - Acceptance: to be agreed with the owner before building.
 
 ### Feature R: location and routing (replaces Feature I)

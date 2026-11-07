@@ -5,6 +5,16 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — key and image test passed (gate, not a feature)
+
+- One live request to muse-spark-1.3 via Responses with a generated
+  32x32 test PNG: PASS, image input accepted, description returned.
+  (A prior dummy-key probe returned 401 as expected; no cost.)
+- Decision: Feature N takes the photo-first path; Q's AI-call step can
+  use Spark vision. No image feature built.
+- Docs committed on `next-phase` (not pushed). Probe script and its
+  package entry left uncommitted per instruction.
+
 ## 7 November 2026 — voice check goes local-only (done)
 
 - check-voice.mjs now defaults to http://127.0.0.1:3000, logs in with a
