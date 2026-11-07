@@ -5,6 +5,17 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — R part one built (awaiting owner browser check)
+
+- Built: buyer "Use my location", draggable map pin, area fallback with no
+  typed coordinates, "Get directions" external link per shop, one-tap
+  shop pin at trader sign-up. No database change, no reseed; the running
+  dev server picks it up on browser refresh.
+- Tests: 44/44 pass (new: directions-link unit test, buyer
+  no-raw-coordinates storage test). Lint clean, production build passes.
+- Committed on `next-phase` (not pushed). Manual browser checklist given
+  to the owner in chat.
+
 ## 7 November 2026 — owner decisions recorded (design only, not built)
 
 - Owner decided: routing test on OpenRouteService and Mapbox, walking
@@ -59,7 +70,7 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   insight), starting with migration `007`.
 - Still pending from plan Step 0: local `npm run dev` browser check of the
   trader and buyer screens.
-- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one is next when the owner says go.
+- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one built and committed (owner browser check pending); next is the key and image test when the owner says go.
 
 ## Open questions
 

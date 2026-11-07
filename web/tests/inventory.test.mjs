@@ -179,6 +179,27 @@ test('reach uses WAT day and excludes days outside the trailing seven calendar d
   await db.query("INSERT INTO buyer_interactions(search_id,shop_id,product_id,kind,at) VALUES($1,$2,$3,'shop_open','2026-11-03T23:30:00Z')",[search,otherShop,product]);
   assert.equal((await db.query("SELECT opens FROM shop_reach_daily WHERE shop_id=$1 AND day='2026-11-04'",[otherShop])).rows[0].opens,1);
 });
+test("buyer records and digests store no raw coordinates",async()=>{
+  const {queryDigest,visitorDigest}=await import("../src/lib/buyer.ts");
+  const secret="c".repeat(32),visitor=visitorDigest("no-coords-visitor",secret);
+  for(const table of ["searches","feedback","buyer_interactions"]){
+    const columns=(await db.query("SELECT column_name FROM information_schema.columns WHERE table_name=$1",[table])).rows.map(r=>r.column_name);
+    for(const field of ["latitude","longitude","lat","lng","lon","coordinates","coords","query","email","phone"])assert.ok(!columns.includes(field),`${table} must not store ${field}`);
+  }
+  const digest=queryDigest({productId:product,latitude:12.345678,longitude:7.654321,radiusKm:5,offset:0},secret);
+  for(const stored of [digest,visitor])assert.ok(!stored.includes("12.345678")&&!stored.includes("7.654321"));
+  const search="50000000-0000-4000-a000-000000000042";
+  await db.query("INSERT INTO searches(id,product_id,found_results,simulated,visitor_hash) VALUES($1,$2,true,true,$3)",[search,product,visitor]);
+  await db.query(BUYER_EVENT_SQL,[search,shop,product,"shop_open"]);
+  await db.query(BUYER_FEEDBACK_SQL,[shop,product,visitor,true,search]);
+  const dump=JSON.stringify([
+    (await db.query("SELECT * FROM searches WHERE id=$1",[search])).rows,
+    (await db.query("SELECT * FROM buyer_interactions WHERE search_id=$1",[search])).rows,
+    (await db.query("SELECT * FROM feedback WHERE search_id=$1",[search])).rows,
+  ]);
+  assert.ok(!dump.includes("12.345678")&&!dump.includes("7.654321"));
+  assert.equal((await db.query("SELECT count(*)::int n FROM feedback WHERE search_id=$1",[search])).rows[0].n,1);
+});
 test('sales summary excludes unpriced revenue and recount corrections, and uses WAT boundaries',async()=>{
   const {SALES_SUMMARY_SQL}=await import('../src/lib/insight-sql.ts');
   const opening=await command('opening',20);

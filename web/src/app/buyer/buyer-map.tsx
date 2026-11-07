@@ -21,7 +21,7 @@ export default function BuyerMap({latitude,longitude,shops,selected,onPin,onShop
     if(!map.current||!layer.current)return;
     layer.current.clearLayers();
     const center=L.latLng(latitude,longitude);
-    L.circleMarker(center,{radius:9,color:"#fff",weight:3,fillColor:"#2546ad",fillOpacity:1}).bindTooltip("Your chosen search pin").addTo(layer.current);
+    const pin=L.marker(center,{draggable:true,title:"Your search pin",keyboard:true,icon:L.divIcon({className:"buyer-search-pin",html:"",iconSize:[22,22],iconAnchor:[11,11]})});pin.bindTooltip("Your search pin: drag to move");pin.on("dragend",()=>{const moved=pin.getLatLng();handlers.current.onPin(Number(moved.lat.toFixed(6)),Number(moved.lng.toFixed(6)));});pin.addTo(layer.current);
     shops.forEach((shop,index)=>{
       const marker=L.marker([shop.latitude,shop.longitude],{title:shop.name,keyboard:true,
         icon:L.divIcon({className:`buyer-map-marker${selected===shop.shop_id?" selected":""}`,html:String(index+1),iconSize:[30,36],iconAnchor:[15,36]})});
@@ -31,5 +31,5 @@ export default function BuyerMap({latitude,longitude,shops,selected,onPin,onShop
     });
   },[latitude,longitude,shops,selected]);
   useEffect(()=>{map.current?.setView([latitude,longitude],14,{animate:false});},[latitude,longitude]);
-  return <div className="buyer-map-wrap"><div ref={container} className="buyer-map" role="region" aria-label="Map of nearby simulated shops; click to choose a search pin"/>{tileError&&<p className="map-warning" role="status">Some map tiles could not load. Shop details and distances remain available in the list.</p>}<p className="hint">Blue dot: your manual pin. Numbered pins: simulated shops. Click the map to change your search pin. No route is calculated.</p></div>;
+  return <div className="buyer-map-wrap"><div ref={container} className="buyer-map" role="region" aria-label="Map of nearby simulated shops; drag the search pin or click to choose a search pin"/>{tileError&&<p className="map-warning" role="status">Some map tiles could not load. Shop details and distances remain available in the list.</p>}<p className="hint">Drag the blue search pin or click the map to move it. Numbered pins: simulated shops. No route is calculated.</p></div>;
 }

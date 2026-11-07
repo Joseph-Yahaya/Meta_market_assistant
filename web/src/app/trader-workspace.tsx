@@ -50,6 +50,7 @@ export default function TraderWorkspace() {
   const [batchId,setBatchId]=useState(""),[correction,setCorrection]=useState<string|null>(null),[review,setReview]=useState<Review|null>(null);
   const [clarification,setClarification]=useState(""),[clarified,setClarified]=useState(false),[suggestedUnit,setSuggestedUnit]=useState<string|null>(null),[unitChecked,setUnitChecked]=useState(false);
   const [recording,setRecording]=useState(false),[audioConsent,setAudioConsent]=useState(false);const [processed,setProcessed]=useState<{transcript:string;action:string;quantity:string;unit:string;item:string}|null>(null);
+  const [locating,setLocating]=useState(false),[pinFromDevice,setPinFromDevice]=useState(false);
   const discardRecording=useRef(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),mounted=useRef(true);
   const product=products.find(p=>p.id===productId),shop=shops.find(s=>s.id===shopId);
@@ -74,6 +75,14 @@ export default function TraderWorkspace() {
     void load();return()=>{active=false;};
   },[shopId,refresh]);
 
+  function setShopPin(){
+    if(!("geolocation" in navigator)){setNotice("Your device did not share a location. The demo pin is kept.");return;}
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      position=>{setAccount(a=>({...a,latitude:String(Number(position.coords.latitude.toFixed(6))),longitude:String(Number(position.coords.longitude.toFixed(6)))}));setPinFromDevice(true);setLocating(false);setNotice("Shop location set from your device.");},
+      ()=>{setLocating(false);setNotice("Your device did not share a location. The demo pin is kept.");},
+      {timeout:15000,maximumAge:60000});
+  }
   async function authenticate(event:React.FormEvent) {
     event.preventDefault();setBusy("account");setNotice("");
     try {
@@ -162,7 +171,7 @@ export default function TraderWorkspace() {
           {authTab==="signup"&&<><label>Your name<input required maxLength={120} autoComplete="name" value={account.ownerName} onChange={e=>setAccount({...account,ownerName:e.target.value})}/></label><label>Shop name<input required maxLength={120} value={account.shopName} onChange={e=>setAccount({...account,shopName:e.target.value})}/></label></>}
           <label>Email<input type="email" required autoComplete="email" value={account.email} onChange={e=>setAccount({...account,email:e.target.value})}/></label>
           <label>Password<input type="password" required minLength={10} maxLength={128} autoComplete={authTab==="signup"?"new-password":"current-password"} value={account.password} onChange={e=>setAccount({...account,password:e.target.value})}/><span className="hint">At least 10 characters. Password recovery is not available in this demo.</span></label>
-          {authTab==="signup"&&<><label>Nearest landmark<input required maxLength={120} placeholder="e.g. near the market junction" value={account.landmark} onChange={e=>setAccount({...account,landmark:e.target.value})}/></label><div className="field-row"><label>Shop latitude<input required type="number" step="any" min={-90} max={90} value={account.latitude} onChange={e=>setAccount({...account,latitude:e.target.value})}/></label><label>Shop longitude<input required type="number" step="any" min={-180} max={180} value={account.longitude} onChange={e=>setAccount({...account,longitude:e.target.value})}/></label></div><span className="hint">Prefilled coordinates are an illustrative Kubwa pin. This demo does not verify shop locations.</span><label className="check"><input type="checkbox" required checked={account.demoNoticeAccepted} onChange={e=>setAccount({...account,demoNoticeAccepted:e.target.checked})}/><span>This is a demo. I will use fictitious trader and shop details.</span></label></>}
+          {authTab==="signup"&&<><label>Nearest landmark<input required maxLength={120} placeholder="e.g. near the market junction" value={account.landmark} onChange={e=>setAccount({...account,landmark:e.target.value})}/></label><div className="inline-actions"><button type="button" className="secondary" disabled={Boolean(busy)||locating} onClick={setShopPin}>{locating?"Reading your location…":"Set my shop location here"}</button></div><span className="hint">Shop pin: {account.latitude}, {account.longitude}{pinFromDevice?" (from your device)":" (illustrative Kubwa demo pin)"}. This demo does not verify shop locations.</span><label className="check"><input type="checkbox" required checked={account.demoNoticeAccepted} onChange={e=>setAccount({...account,demoNoticeAccepted:e.target.checked})}/><span>This is a demo. I will use fictitious trader and shop details.</span></label></>}
           <button className="primary" disabled={Boolean(busy)||!status?.accountsConfigured}>{busy==="account"?"Please wait…":authTab==="login"?"Sign in to your shop":"Create trader account"}</button>
         </form>
       </section>

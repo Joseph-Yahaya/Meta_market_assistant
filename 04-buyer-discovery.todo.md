@@ -40,6 +40,7 @@ A buyer can find nearby shops carrying the right product, understand availabilit
 
 - 3 November 2026 — User selected manual location only (option 2) and approved the proposed 5 km, nearest-first, privacy-preserving display defaults (option 1). No device geolocation will be requested.
 - Implementation choice: five-second polling with overlap prevention, pause while hidden/offline and recovery on return. This works without a host-specific persistent socket service.
+- 7 November 2026 — Owner superseded manual-only location for Feature R part one: buyers get "Use my location" plus a draggable map pin with area fallback (no typed coordinates, no raw coordinates stored); traders set the shop pin at sign-up with one tap; shop cards link out to "Get directions". Radius selector stays until Feature O; no in-app routing yet.
 
 - 3 November 2026 — User confirmed trader signup/login and buyer browsing without accounts. Buyer registration is outside current scope.
 
@@ -48,6 +49,8 @@ A buyer can find nearby shops carrying the right product, understand availabilit
 ## Progress and blockers
 
 Implemented and locally verified anonymous buyer search, optional map, result list, visit feedback, minimal event tracking and polling. All fixtures remain simulated. Preserve pending live Meta, Railway/PostgreSQL, verified-pin and real-user privacy gates.
+
+R part one (7 November 2026): buyer device location, draggable map pin, area fallback without typed coordinates, per-shop "Get directions" external link, one-tap shop pin at trader signup. Evidence: 44/44 automated tests (new directions-link and no-raw-coords storage tests), clean lint, production build passes. No migration, no reseed. Owner browser checklist pending.
 
 ## Implemented routes and behavior
 
