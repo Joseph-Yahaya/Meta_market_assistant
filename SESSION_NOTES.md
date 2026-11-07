@@ -1,9 +1,35 @@
 # SESSION_NOTES.md
 
-Last updated: 6 November 2026. Branch: `next-phase`. Remote: owner's own
+Last updated: 7 November 2026. Branch: `next-phase`. Remote: owner's own
 https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
+
+## 7 November 2026 — owner decisions recorded (design only, not built)
+
+- Owner decided: routing test on OpenRouteService and Mapbox, walking
+  default with driving optional; new products auto-checked with flagged
+  items to the owner; store cropped trader photos, buyer photos only in
+  alerts and only briefly, shown to traders only after the minimum with
+  consent; barcode deferred; minimum 5 distinct searchers in 24 hours;
+  household and personal care in scope, medicines and regulated goods out.
+  Recorded in BUILD_PLAN.md.
+- Build order set: R part one, key and image test, Q, N, O, P, R part two.
+  Acceptance written for R part one only.
+- Documentation committed on `next-phase` (not pushed). Nothing built.
+
+## 7 November 2026 — owner change request (design only, not built)
+
+- Owner tested locally and requested Features N–R; added to BUILD_PLAN.md.
+  Nothing built. Feature R replaces Feature I; dependencies line updated
+  (O before P; Q before the photo parts of N, H and P).
+- Standing agreement: the sandbox cannot reach localhost, so for every
+  future feature run the automated tests and any checks that do not need
+  the server, and give the owner a short manual checklist to verify in
+  their browser.
+- Dev server running detached on http://127.0.0.1:3000 since 7 November
+  (started with one-time elevated approval; verified with an unsandboxed
+  probe: /api/health 200 ready, /buyer 200).
 
 ## What changed (6 November 2026)
 
@@ -33,6 +59,7 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   insight), starting with migration `007`.
 - Still pending from plan Step 0: local `npm run dev` browser check of the
   trader and buyer screens.
+- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one is next when the owner says go.
 
 ## Open questions
 
@@ -42,3 +69,8 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
 - `06-demo-release-and-pilot.todo.md` and `web/README.md` still reference
   `official-pam/Meta_market_assistant` as the destination (3 November
   history). Flagged for annotation; not changed yet.
+- 7 November open decisions, all decided the same day: OpenRouteService
+  and Mapbox test, walking default; flagged products to the owner;
+  cropped trader photos stored, buyer photos brief and alert-only with
+  consent; barcode deferred; minimum 5 in 24 hours; household and
+  personal care in, medicines and regulated goods out.

@@ -49,6 +49,8 @@ Stack: Next.js (App Router, TypeScript) for frontend and backend, PostgreSQL (th
 
 For each: build, test, lint, build, record evidence, then stop and report.
 
+Agreed build order (owner, 7 November 2026): R part one, then the key and image test, then Q, N, O, P, then R part two. R part one is the client-side location work with straight-line distance; R part two is the provider comparison and choice plus server-side road distance/time and the route line. The key and image test is a gate, not a feature: using the owner's own Meta key, one small live check that calls work and whether image input is accepted; its result decides N's photo-first vs voice-naming path before Q and N are built.
+
 ### Feature A: simulated demand spike and trader insight
 - Migration `007`: `demand_daily(product_id, area_cell, day, distinct_sessions, simulated boolean)`. Counts only; no identifiers. Do not weaken the existing 24-hour retention of raw search records.
 - Real searches increment it by distinct session. Seeded rows are always `simulated = true`.
@@ -94,7 +96,8 @@ For each: build, test, lint, build, record evidence, then stop and report.
 - First make one small test call to confirm the provider actually supports image input and what it returns (check the documentation; SAM 3.1 and the vision capability of Muse Spark are unverified). If unsupported, leave this feature on the roadmap and say so.
 - Packaged goods only. Show candidate products (with confidence only if the provider supplies one), and require the buyer to confirm the exact variant before the inventory lookup. Do not store images. Do not claim hardware (screws, bolts) identification.
 
-### Feature I: road routes
+### Feature I: road routes (replaced by Feature R)
+- **Replaced by Feature R on 7 November 2026 (owner request). Kept for history; do not build.**
 - Verify OpenStreetMap coverage around Kubwa and the routing service's terms. Draw a route from the buyer's pin to the chosen shop. Keep straight-line distance and the landmark as the fallback, and never use a public demo routing server for real traffic.
 
 ### Feature J: sales anomaly flags (private, rules-based)
@@ -108,6 +111,35 @@ For each: build, test, lint, build, record evidence, then stop and report.
 
 ### Feature M: interface language
 - A language selector and translated interface text, enabled only for languages that pass Feature E, with strings reviewed by native speakers.
+
+### Feature N: trader-added products (photo-first, no typing)
+- Traders can add products outside the fixed catalog. If nothing matches, the trader photographs the product: one required photo, optional guided extra angles.
+- The key and image test verifies whether the Meta API accepts images before building; if not, fall back to voice naming plus picture-based units. Barcode scanning is deferred (owner decision, 7 November 2026).
+- The AI proposes name, brand, size, unit and category; the trader confirms with large yes/no buttons and picture-based unit choices, with no typing.
+- New products are auto-checked and usable by the shop immediately; anything flagged goes to the owner for review, and products are visible to buyers only after validation: length limits, duplicate check, rate limits, safety checks, injection-safe handling. Category and regulated-goods rules stay in code. In-scope categories now include household and personal care; medicines and regulated goods are excluded (owner decision, 7 November 2026). Store cropped trader product photos.
+- Acceptance: to be agreed with the owner before building.
+
+### Feature O: smarter buyer search
+- Remove the radius selector. The AI interprets typed or spoken queries and maps them to a catalog product or a "not yet in catalog" idea.
+- Distance ranking stays deterministic. Start at 5 km and widen automatically to 10 and 20 km with a clear message.
+- Acceptance: to be agreed with the owner before building.
+
+### Feature P: unmet-demand alerts
+- When a search finds nothing after widening, increment a daily aggregate by product key and coarse area cell, distinct sessions only.
+- When distinct sessions reach the confirmed minimum of 5 distinct searchers in 24 hours (owner decision, 7 November 2026), notify opted-in nearby traders who do not stock it.
+- Optionally prompt the buyer for a photo: strip image metadata, show only a cropped product image, require consent text. Buyer photos are stored only if included in an alert and only briefly, and shown to traders only after the minimum is reached (owner decision, 7 November 2026).
+- Aggregate and anonymous; seed simulated demand and label it simulated. Paid-tier gating is a label only for now.
+- Acceptance: to be agreed with the owner before building.
+
+### Feature Q: shared image pipeline
+- One pipeline built before the photo parts of N, H and P: type and size validation, metadata stripping, resizing, safety check, AI call, storage decision. Storage rule (owner decision, 7 November 2026): store cropped trader product photos; buyer photos only if included in an alert and only briefly.
+- Acceptance: to be agreed with the owner before building.
+
+### Feature R: location and routing (replaces Feature I)
+- Part one (build first): buyers get "Use my location" plus a draggable pin and area/landmark fallback. No typed coordinates for normal users; no raw coordinates stored. Traders set their shop pin at sign-up by tapping "Set my shop location here". A "Get directions" button opens the buyer's own maps app. Straight-line distance and the landmark stay as the measure and fallback.
+- Part two (after P): the provider comparison and choice, then server-side road distance and time for the 5 nearest shops only, with caching, rate limits, a notice that location is sent to the provider, and straight-line distance as the fallback. A route line on the map.
+- Provider test (owner decision, 7 November 2026): compare OpenRouteService and Mapbox on at least 10 real Kubwa trips, walking and driving. Default mode walking, driving optional. Choose only after the comparison.
+- Acceptance (part one): the buyer can share device location, drag the pin, or use the area/landmark fallback, with no typed coordinates for normal users; no raw buyer coordinates are stored (verified by tests); the trader sets the shop pin at sign-up with one tap; "Get directions" opens the buyer's own maps app for the chosen shop; straight-line distance and landmark remain visible throughout; automated tests pass and the owner's manual browser checklist passes.
 
 ## 7. Later, not now (parked ideas, so they are not forgotten)
 
@@ -150,5 +182,5 @@ Also keep in mind: the original problem statement (price imbalance and exploitat
 
 Owner-only steps: the Meta developer app and WhatsApp test number (D, L), native-speaker review and recordings (E, M), decisions in section 8, and approving each push.
 
-Dependencies: A before B; B before C and D; D before L; E before M; G, H, I, J and K are independent, but H and I need a quick verification test before any build.
+Dependencies: A before B; B before C and D; D before L; E before M; O before P; Q before the photo parts of N, H and P; G, H, J, K, N and R are independent, but H needs a quick verification test before any build, and R part two needs the provider comparison before choosing one. Feature I is replaced by R.
 
