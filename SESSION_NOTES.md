@@ -5,6 +5,15 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — voice check goes local-only (done)
+
+- check-voice.mjs now defaults to http://127.0.0.1:3000, logs in with a
+  test trader account from VOICE_TEST_EMAIL/VOICE_TEST_PASSWORD, and
+  refuses non-local origins unless --allow-remote is passed. No keys,
+  passwords or cookies printed. Railway references removed.
+- Tests: 57/57 pass (new local-origin guard test). Lint clean,
+  production build passes. Committed on `next-phase` (not pushed).
+
 ## 7 November 2026 — voice accuracy built (awaiting owner browser check)
 
 - Built: keyword-biased transcription, improved browser capture, OGG

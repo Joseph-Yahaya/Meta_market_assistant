@@ -5,6 +5,7 @@ import { cleanEntryText, likelyAction, applyActionPreset } from "../src/lib/entr
 import { normaliseVolume, trimSilence } from "../src/lib/audio.ts";
 import { planUndo, UNDO_WINDOW_SECONDS } from "../src/lib/undo.ts";
 import { createMetaClient } from "../src/lib/meta-client.ts";
+import { isLocalOrigin } from "../src/lib/app-origin.ts";
 
 test("voice keywords lead with action words, dedupe and stay capped", () => {
   const keywords = buildVoiceKeywords(["Indomie", "indomie", "Dangote"], ["Noodles", "noodles", "x".repeat(41), "  "]);
@@ -69,6 +70,19 @@ test("a tapped action preset fills a gap but reports a conflict", () => {
   assert.deepEqual(applyActionPreset("restock", "sale"), { action: "sale", conflict: "restock" });
 });
 
+test("maintainer scripts recognise local origins only", () => {
+  for (const local of ["http://127.0.0.1:3000", "http://localhost:3000/", "https://localhost/", "http://[::1]:3000"])
+    assert.equal(isLocalOrigin(local), true);
+  for (const remote of [
+    "https://ai-market-assistant-production.up.railway.app",
+    "https://example.com",
+    "not a url",
+    "",
+    "file:///etc/passwd",
+    "http://127.0.0.1.evil.com",
+  ])
+    assert.equal(isLocalOrigin(remote), false);
+});
 test("undo plans per-batch recounts restoring pre-command estimates", () => {
   assert.equal(UNDO_WINDOW_SECONDS, 60);
   assert.deepEqual(planUndo([{ id: "e1", batchId: "b1", delta: -3 }], { b1: 5 }), [

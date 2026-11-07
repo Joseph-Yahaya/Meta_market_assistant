@@ -8,35 +8,44 @@
 //   node --env-file-if-exists=.env.local scripts/check-voice.mjs ./recordings/
 // manifest.json: {"cases":[{"file":"sale1.wav","action":"sale","quantity":3,"product":"indomie"}]}
 //
-// Env: APP_ORIGIN (default: the Railway production URL), DEMO_ACCESS_CODE (required),
-//   SHOP_ID (optional; defaults to the first simulated shop).
+// Env: APP_ORIGIN (default: http://127.0.0.1:3000), VOICE_TEST_EMAIL and
+//   VOICE_TEST_PASSWORD (required test trader account), SHOP_ID (optional;
+//   defaults to the trader's first shop). Refuses non-local origins unless
+//   --allow-remote is passed explicitly.
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { isLocalOrigin } from "../src/lib/app-origin.ts";
 
-const origin = (process.env.APP_ORIGIN || "https://ai-market-assistant-production.up.railway.app").replace(/\/$/, "");
-const accessCode = process.env.DEMO_ACCESS_CODE;
-const target = process.argv[2] || process.env.VOICE_SAMPLE;
-if (!accessCode?.trim()) {
-  console.error("FAIL: set DEMO_ACCESS_CODE to the Railway variable value first.");
+const allowRemote = process.argv.includes("--allow-remote");
+const origin = (process.env.APP_ORIGIN || "http://127.0.0.1:3000").replace(/\/$/, "");
+if (!isLocalOrigin(origin) && !allowRemote) {
+  console.error("FAIL: refusing non-local origin. Set APP_ORIGIN to a local address or pass --allow-remote.");
   process.exit(1);
 }
+const email = process.env.VOICE_TEST_EMAIL, password = process.env.VOICE_TEST_PASSWORD;
+if (!email?.trim() || !password) {
+  console.error("FAIL: set VOICE_TEST_EMAIL and VOICE_TEST_PASSWORD to a test trader account first.");
+  process.exit(1);
+}
+const target = process.argv.slice(2).find((a) => a !== "--allow-remote") || process.env.VOICE_SAMPLE;
 if (!target) {
   console.error("FAIL: pass a WAV sample path or a recordings folder: node scripts/check-voice.mjs ./sample.wav");
   process.exit(1);
 }
-async function post(path, { json, cookie, audio } = {}) {
+async function post(path, { method, json, cookie, audio } = {}) {
   const headers = { Origin: origin };
   if (cookie) headers.Cookie = cookie;
   let body;
+  const get = method === "GET";
   if (json) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(json);
-  } else {
+  } else if (!get) {
     if (!audio) throw new Error("AUDIO_REQUIRED");
     headers["Content-Type"] = "audio/wav";
     body = audio;
   }
-  const response = await fetch(`${origin}${path}`, { method: "POST", headers, body, signal: AbortSignal.timeout(45000) });
+  const response = await fetch(`${origin}${path}`, { method: get ? "GET" : "POST", headers, body, signal: AbortSignal.timeout(45000) });
   let data = null;
   try {
     data = await response.json();
@@ -47,23 +56,19 @@ async function post(path, { json, cookie, audio } = {}) {
   return { ok: response.ok, status: response.status, code: data?.error?.code || "", cookie: setCookie?.split(";")[0] || "", data };
 }
 async function login() {
-  const list = await post("/api/demo/session", { json: { accessCode } });
-  if (!list.ok) {
-    console.error(`FAIL: demo session refused (HTTP ${list.status}, ${list.code || "no code"}).`);
+  const auth = await post("/api/auth/login", { json: { email, password } });
+  if (!auth.ok || !auth.cookie) {
+    console.error(`FAIL: trader login refused (HTTP ${auth.status}, ${auth.code || "no code"}).`);
     process.exit(1);
   }
-  const shops = Array.isArray(list.data?.shops) ? list.data.shops : [];
+  const session = await post("/api/auth/session", { method: "GET", cookie: auth.cookie });
+  const shops = Array.isArray(session.data?.shops) ? session.data.shops : [];
   const shopId = process.env.SHOP_ID || shops[0]?.id;
-  if (!shopId) {
-    console.error("FAIL: no simulated shop found for this demo login.");
+  if (!session.ok || !shopId) {
+    console.error(`FAIL: no shop found for this trader account (HTTP ${session.status}, ${session.code || "no code"}).`);
     process.exit(1);
   }
-  const session = await post("/api/demo/session", { json: { accessCode, shopId } });
-  if (!session.ok || !session.cookie) {
-    console.error(`FAIL: demo shop login refused (HTTP ${session.status}, ${session.code || "no code"}).`);
-    process.exit(1);
-  }
-  return { shopId, cookie: session.cookie };
+  return { shopId, cookie: auth.cookie };
 }
 function checkWav(buffer, label) {
   if (buffer.length < 44 || buffer.length > 1500000 || buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WAVE") {
