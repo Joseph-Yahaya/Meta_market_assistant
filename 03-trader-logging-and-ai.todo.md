@@ -52,6 +52,8 @@ Built: trader signup/login/logout, shop setup, stock dashboard, manual/text/voic
 
 Voice accuracy (7 November 2026): transcription now sends languageBias English plus catalog/action keyword biasing (reference checked; no provider keyword limit published, self-capped at 100). Browser capture uses echo cancellation and noise suppression with volume normalisation and silence trimming; uploads accept WhatsApp .ogg via in-browser decode to 24 kHz mono WAV. Action-first buttons with preset-aware interpretation, mishearing-triggered action question, filler stripping, and 60-second compensating-event undo. check-voice.mjs gained a folder accuracy mode reporting action/quantity/product pass rates. Correction log designed only. Evidence: automated tests, lint and build (see session notes); owner browser checklist pending.
 
+Feature Q (7 November 2026): shared image pipeline behind trader signup — byte sniffing, EXIF stripping, browser resize/re-encode, validated Spark vision proposals, per-minute plus daily image caps, protected analyze route, trial script. Stores nothing. Evidence: 64/64 tests, clean lint, production build passes.
+
 ## Implemented behavior and evidence
 
 - Added trader signup, login and logout, shop setup, an owner stock dashboard, recent history, manual/text entry, voice recording/upload code, canonical product selection, review and recount/correction flows. Buyers have no signup requirement; buyer discovery pages are task 04.

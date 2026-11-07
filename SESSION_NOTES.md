@@ -5,6 +5,23 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — Feature Q built (no UI yet; owner trial pending)
+
+- Built: shared byte checks (content sniffing, 5 MB cap, EXIF strip for
+  JPEG/PNG, WebP-EXIF refusal), browser resize to 1280 px with JPEG
+  re-encode, Spark vision call with strictly validated proposal
+  (photo text is data, non-products rejected), protected
+  POST /api/images/analyze for signed-in traders with per-minute and
+  daily image caps, and a trial script printing fields only. Q stores
+  nothing; originals discarded. No database change, no reseed, no live
+  calls made from here.
+- Owner decisions recorded: bottle unit for N, 10-new-products-a-day
+  confirmed, N photos to an ignored local folder until hosting exists.
+- Tests: 64/64 pass (Q7 suite: types, oversize, metadata, injection,
+  caps). Lint clean, production build passes with the new route.
+- Committed on `next-phase` (not pushed). Short trial checklist given
+  to the owner in chat.
+
 ## 7 November 2026 — Q and N acceptance recorded (design only, not built)
 
 - Owner supplied acceptance criteria: 7 items for Q (shared image

@@ -117,7 +117,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - The key and image test verifies whether the Meta API accepts images before building; if not, fall back to voice naming plus picture-based units. Barcode scanning is deferred (owner decision, 7 November 2026).
 - Key and image test passed 7 November 2026: muse-spark-1.3 accepts image input, so N takes the photo-first path.
 - The AI proposes name, brand, size, unit and category; the trader confirms with large yes/no buttons and picture-based unit choices, with no typing.
-- New products are auto-checked and usable by the shop immediately; anything flagged goes to the owner for review, and products are visible to buyers only after validation: length limits, duplicate check, rate limits, safety checks, injection-safe handling. Category and regulated-goods rules stay in code. In-scope categories now include household and personal care; medicines and regulated goods are excluded (owner decision, 7 November 2026). Store cropped trader product photos.
+- New products are auto-checked and usable by the shop immediately; anything flagged goes to the owner for review, and products are visible to buyers only after validation: length limits, duplicate check, rate limits, safety checks, injection-safe handling. Category and regulated-goods rules stay in code. In-scope categories now include household and personal care; medicines and regulated goods are excluded (owner decision, 7 November 2026). Store cropped trader product photos in an ignored local folder until hosted storage is decided (owner decision, 7 November 2026).
 - Acceptance (owner, 7 November 2026):
   1. When a typed or spoken product matches nothing, the trader sees a large "Not in your list. Add it with a photo" button.
   2. The phone camera opens for one required photo, with an optional "show the back" step.
@@ -125,7 +125,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
   4. The unit is chosen from picture buttons (piece, pack, carton, bottle) with the AI's guess preselected, and no typing is required.
   5. Before creating anything, the app shows the closest existing catalog products ("Is it one of these?").
   6. Medicines and regulated goods are refused with a plain message and never added.
-  7. A trader can add at most 10 new products a day (owner to confirm).
+  7. A trader can add at most 10 new products a day (confirmed 7 November 2026).
   8. The new product works for that shop immediately, stays hidden from buyers until automatic checks pass, and anything flagged goes to a simple owner review list where the owner approves or rejects.
   9. The trader confirms every product before it is saved.
   10. If the AI fails, the trader can type a name instead and still use the picture-based unit buttons.

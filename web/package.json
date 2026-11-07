@@ -10,6 +10,7 @@
     "check:meta": "node --env-file-if-exists=.env.local scripts/check-meta.mjs",
     "check:voice": "node --env-file-if-exists=.env.local scripts/check-voice.mjs",
     "check:image": "node --env-file-if-exists=.env.local scripts/check-image.mjs",
+    "check:pipeline": "node --env-file-if-exists=.env.local scripts/check-pipeline.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/seed.mjs",
     "test": "node --test tests/*.test.mjs",

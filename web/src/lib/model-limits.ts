@@ -1,14 +1,16 @@
-export type ModelScope = "interpret" | "transcribe" | "buyer-voice";
+export type ModelScope = "interpret" | "transcribe" | "buyer-voice" | "image";
 export const DAILY_CAP_DEFAULTS: Record<ModelScope | "global", number> = {
   interpret: 100,
   transcribe: 50,
   "buyer-voice": 20,
+  image: 50,
   global: 500,
 };
 const ENV_KEYS: Record<ModelScope | "global", string> = {
   interpret: "MODEL_DAILY_CAP_INTERPRET",
   transcribe: "MODEL_DAILY_CAP_TRANSCRIBE",
   "buyer-voice": "MODEL_DAILY_CAP_BUYER_VOICE",
+  image: "MODEL_DAILY_CAP_IMAGE",
   global: "MODEL_DAILY_CAP_GLOBAL",
 };
 function parseCap(raw: string | undefined, fallback: number): number {
