@@ -5,6 +5,19 @@ https://github.com/Joseph-Yahaya/Meta_market_assistant (verified with
 `git remote -v`). The teammate's submission repository
 https://github.com/official-pam/Meta_market_assistant must never be changed.
 
+## 7 November 2026 — free-text multi-variant search built (awaiting owner browser check)
+
+- Built: type-and-find without dropdown picking, keyword matching with
+  an 8-variant cap, parallel single-product searches merged and grouped
+  by shop, per-variant availability with narrowing chips, "Not in our
+  list yet" and "No shops found within 20 km" states. Server unchanged;
+  privacy rules intact; feedback stays variant-bound. No database
+  change, no reseed.
+- Tests: 58/58 pass (new: match cap, shop grouping). Lint clean,
+  production build passes.
+- Committed on `next-phase` (not pushed). Manual browser checklist given
+  to the owner in chat.
+
 ## 7 November 2026 — key and image test passed (gate, not a feature)
 
 - One live request to muse-spark-1.3 via Responses with a generated
@@ -112,7 +125,7 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   insight), starting with migration `007`.
 - Still pending from plan Step 0: local `npm run dev` browser check of the
   trader and buyer screens.
-- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one, O non-AI widening and voice accuracy built and committed (owner browser checks pending); next is the key and image test when the owner says go.
+- Build order set 7 November: R part one, key and image test, Q, N, O, P, R part two. R part one, O widening, voice accuracy, image gate and free-text search built and committed (owner browser checks pending); next is Feature Q when the owner says go.
 
 ## Open questions
 

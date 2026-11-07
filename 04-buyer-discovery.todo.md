@@ -54,6 +54,8 @@ R part one (7 November 2026): buyer device location, draggable map pin, area fal
 
 O non-AI widening (7 November 2026): Distance selector removed; every search starts at 5 km and the server widens to 10 then 20 km while nothing is found, returning the searched radius for a clear message. Deterministic distance ranking, privacy rules, tokens and polling unchanged; nothing recorded for unmet demand. Location errors split into blocked/unavailable/timeout with a browser allow-hint. Evidence: 47/47 tests, clean lint, production build passes.
 
+Free-text search (7 November 2026, no AI): typing a name and pressing Find matches catalog variants with the existing keyword matcher (capped at 8 with a notice); multi-variant results fan out over the unchanged single-product API and group by shop with per-variant availability and narrowing chips. No match says "Not in our list yet"; zero results says "No shops found within 20 km". No query text or coordinates stored; feedback tokens stay variant-bound. Evidence: 58/58 tests, clean lint, production build passes.
+
 ## Implemented routes and behavior
 
 - `/buyer` is open without signup. Traders can reach it through Browse market; the buyer header links back to the trader workspace.

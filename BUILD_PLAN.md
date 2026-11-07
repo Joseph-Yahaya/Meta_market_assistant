@@ -121,7 +121,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - Acceptance: to be agreed with the owner before building.
 
 ### Feature O: smarter buyer search
-- Non-AI part built early on 7 November 2026: radius selector removed, server widens 5→10→20 km automatically with a clear message. AI query interpretation still pending.
+- Non-AI part built early on 7 November 2026: radius selector removed, server widens 5→10→20 km automatically with a clear message. Free-text multi-variant matching added the same day, still without AI. AI query interpretation still pending.
 - Remove the radius selector. The AI interprets typed or spoken queries and maps them to a catalog product or a "not yet in catalog" idea.
 - Distance ranking stays deterministic. Start at 5 km and widen automatically to 10 and 20 km with a clear message.
 - Acceptance: to be agreed with the owner before building.

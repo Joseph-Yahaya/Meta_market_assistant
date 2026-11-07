@@ -1,7 +1,8 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {parseBuyerSearch,signBuyer,readBuyer,visitorDigest,queryDigest,newBuyerSession} from "../src/lib/buyer.ts";
-import {catalogMatches} from "../src/lib/catalog-match.ts";
+import {catalogMatches,matchCatalogProducts} from "../src/lib/catalog-match.ts";
+import {groupShopsByShop} from "../src/lib/shop-groups.ts";
 import {directionsUrl} from "../src/lib/directions.ts";
 import {wideningSteps,widenMessage} from "../src/lib/search-radius.ts";
 import {locationErrorMessage} from "../src/lib/geolocation.ts";
@@ -45,6 +46,28 @@ test("location failures speak plainly with a browser hint for blocked permission
   assert.equal(locationErrorMessage(2,"choose a demo area"),"Your device could not determine its location. Please choose a demo area instead.");
   assert.equal(locationErrorMessage(3,"choose a demo area"),"Reading your location took too long. Please try again, or choose a demo area.");
   assert.equal(locationErrorMessage(99,"keep the demo pin"),"Reading your location took too long. Please try again, or keep the demo pin.");
+});
+test("free text matches variants with a cap, and rows group by shop",()=>{
+  const catalog=[
+    {brand:"Indomie",name:"Noodles",variant:"Chicken",size:"70g"},
+    {brand:"Indomie",name:"Noodles",variant:"Onion",size:"70g"},
+    {brand:"Dangote",name:"Sugar",variant:"White",size:"1kg"},
+  ];
+  const found=matchCatalogProducts("indomie",catalog);
+  assert.equal(found.matched.length,2);assert.equal(found.truncated,false);
+  assert.deepEqual(matchCatalogProducts("please",catalog).matched,[]);
+  const capped=matchCatalogProducts("e",[...catalog,...catalog,...catalog,...catalog],2);
+  assert.equal(capped.matched.length,2);assert.equal(capped.truncated,true);
+  const rows=[
+    {shop_id:"s1",distance_km:0.5,product_id:"p1"},
+    {shop_id:"s2",distance_km:2.1,product_id:"p1"},
+    {shop_id:"s1",distance_km:0.5,product_id:"p2"},
+  ];
+  const groups=groupShopsByShop(rows);
+  assert.equal(groups.length,2);
+  assert.equal(groups[0].shopId,"s1");assert.equal(groups[0].variants.length,2);
+  assert.deepEqual(groups[0].variants.map(v=>v.product_id),["p1","p2"]);
+  assert.equal(groups[1].shopId,"s2");
 });
 test("simple English and Pidgin filler words do not prevent exact variant selection",()=>{
   const product={brand:"Indomie",name:"Noodles",variant:"Chicken",size:"70g"};
