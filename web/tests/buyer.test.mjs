@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {parseBuyerSearch,signBuyer,readBuyer,visitorDigest,queryDigest,newBuyerSession} from "../src/lib/buyer.ts";
 import {catalogMatches} from "../src/lib/catalog-match.ts";
 import {directionsUrl} from "../src/lib/directions.ts";
+import {wideningSteps,widenMessage} from "../src/lib/search-radius.ts";
+import {locationErrorMessage} from "../src/lib/geolocation.ts";
 const secret="b".repeat(32),productId="30000000-0000-4000-a000-000000000001";
 test("buyer search requires an exact product and valid manual coordinates",()=>{
   const valid={productId,latitude:9.151,longitude:7.324};assert.equal(parseBuyerSearch(valid).radiusKm,5);
@@ -28,6 +30,21 @@ test("search fingerprints bind location/radius without putting them in a token",
 test("directions links open an external map for a valid shop pin",()=>{
   assert.equal(directionsUrl(9.151,7.324),"https://www.google.com/maps/dir/?api=1&destination=9.151,7.324");
   for(const [lat,lng] of [[NaN,7.324],[9.151,NaN],[91,0],[0,181],["9.151",7.324],[9.151,null]])assert.throws(()=>directionsUrl(lat,lng),/INVALID_DIRECTIONS_PIN/);
+});
+test("search widening steps rise from 5 km toward 20 km with a clear message",()=>{
+  assert.deepEqual(wideningSteps(5),[5,10,20]);
+  assert.deepEqual(wideningSteps(10),[10,20]);
+  assert.deepEqual(wideningSteps(20),[20]);
+  assert.deepEqual(wideningSteps(50),[50]);
+  assert.equal(widenMessage(5,5),null);
+  assert.equal(widenMessage(5,10),"No shops within 5 km, showing the nearest within 10 km");
+  assert.equal(widenMessage(5,20),"No shops within 10 km, showing the nearest within 20 km");
+});
+test("location failures speak plainly with a browser hint for blocked permission",()=>{
+  assert.equal(locationErrorMessage(1,"choose a demo area"),"Location is blocked for this site. Click the lock or tune icon in the browser address bar, set Location to Allow, then try again. You can also choose a demo area.");
+  assert.equal(locationErrorMessage(2,"choose a demo area"),"Your device could not determine its location. Please choose a demo area instead.");
+  assert.equal(locationErrorMessage(3,"choose a demo area"),"Reading your location took too long. Please try again, or choose a demo area.");
+  assert.equal(locationErrorMessage(99,"keep the demo pin"),"Reading your location took too long. Please try again, or keep the demo pin.");
 });
 test("simple English and Pidgin filler words do not prevent exact variant selection",()=>{
   const product={brand:"Indomie",name:"Noodles",variant:"Chicken",size:"70g"};

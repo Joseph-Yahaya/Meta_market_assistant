@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import StockInsights from "./stock-insights";
 import { pcmToWav } from "@/lib/audio";
+import { locationErrorMessage } from "@/lib/geolocation";
 import { nairaToKobo } from "@/lib/money";
 import type { StockEntry } from "@/lib/entries";
 import type { ExtractedEntry } from "@/lib/meta-client";
@@ -76,11 +77,11 @@ export default function TraderWorkspace() {
   },[shopId,refresh]);
 
   function setShopPin(){
-    if(!("geolocation" in navigator)){setNotice("Your device did not share a location. The demo pin is kept.");return;}
+    if(!("geolocation" in navigator)){setNotice(locationErrorMessage(2,"keep the demo pin"));return;}
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       position=>{setAccount(a=>({...a,latitude:String(Number(position.coords.latitude.toFixed(6))),longitude:String(Number(position.coords.longitude.toFixed(6)))}));setPinFromDevice(true);setLocating(false);setNotice("Shop location set from your device.");},
-      ()=>{setLocating(false);setNotice("Your device did not share a location. The demo pin is kept.");},
+      error=>{setLocating(false);setNotice(locationErrorMessage(error.code,"keep the demo pin"));},
       {timeout:15000,maximumAge:60000});
   }
   async function authenticate(event:React.FormEvent) {

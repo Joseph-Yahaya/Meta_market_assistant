@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { buyerUuid,newBuyerSession,parseBuyerSearch,queryDigest,readBuyer,signBuyer,visitorDigest } from "@/lib/buyer";
+import { wideningSteps } from "@/lib/search-radius";
 import { DISCOVERY_SQL,longitudeSpan } from "@/lib/discovery";
 import { BUYER_EVENT_SQL,BUYER_FEEDBACK_SQL } from "@/lib/buyer-sql";
 import { sessionSecret } from "./auth";
@@ -37,14 +38,22 @@ export async function buyerSearch(body:Record<string,unknown>) {
     searchId=randomUUID();
     searchToken=signBuyer("buyer-search",{visitor,query:digest,searchId,expires:Date.now()+24*3600000},secret);
   }
-  const {rows}=await db.query(DISCOVERY_SQL,[input.productId,input.latitude,input.longitude,input.radiusKm,input.offset,longitudeSpan(input.latitude,input.radiusKm)]);
+  const initial=await db.query(DISCOVERY_SQL,[input.productId,input.latitude,input.longitude,input.radiusKm,input.offset,longitudeSpan(input.latitude,input.radiusKm)]);
+  let searchedRadiusKm=input.radiusKm,rows=initial.rows;
+  if(input.offset===0&&!rows.length){
+    for(const step of wideningSteps(input.radiusKm).slice(1)){
+      const attempt=await db.query(DISCOVERY_SQL,[input.productId,input.latitude,input.longitude,step,input.offset,longitudeSpan(input.latitude,step)]);
+      searchedRadiusKm=step;rows=attempt.rows;
+      if(rows.length)break;
+    }
+  }
   if(!body.searchToken) {
     await db.query("DELETE FROM searches WHERE simulated AND at<now()-interval '24 hours'");
     await db.query("DELETE FROM feedback WHERE at<now()-interval '24 hours' AND shop_id IN (SELECT id FROM shops WHERE simulated)");
     await db.query("INSERT INTO searches(id,product_id,found_results,simulated,visitor_hash) VALUES($1,$2,$3,true,$4)",[searchId,input.productId,rows.length>0,visitor]);
   }
   const shops=rows.slice(0,50).map(row=>({...row,feedbackToken:signBuyer("buyer-feedback",{visitor,searchId,shopId:row.shop_id,productId:input.productId,expires:Date.now()+15*60000},secret)}));
-  return {simulated:true,availability:"estimated",distanceType:"straight-line",shops,nextOffset:rows.length>50?input.offset+50:null,searchToken,refreshSeconds:5};
+  return {simulated:true,availability:"estimated",distanceType:"straight-line",requestedRadiusKm:input.radiusKm,searchedRadiusKm,shops,nextOffset:rows.length>50?input.offset+50:null,searchToken,refreshSeconds:5};
 }
 export async function buyerInteraction(body:Record<string,unknown>) {
   const {visitor,secret}=await buyerIdentity();let token;

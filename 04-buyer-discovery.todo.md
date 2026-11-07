@@ -52,6 +52,8 @@ Implemented and locally verified anonymous buyer search, optional map, result li
 
 R part one (7 November 2026): buyer device location, draggable map pin, area fallback without typed coordinates, per-shop "Get directions" external link, one-tap shop pin at trader signup. Evidence: 44/44 automated tests (new directions-link and no-raw-coords storage tests), clean lint, production build passes. No migration, no reseed. Owner browser checklist pending.
 
+O non-AI widening (7 November 2026): Distance selector removed; every search starts at 5 km and the server widens to 10 then 20 km while nothing is found, returning the searched radius for a clear message. Deterministic distance ranking, privacy rules, tokens and polling unchanged; nothing recorded for unmet demand. Location errors split into blocked/unavailable/timeout with a browser allow-hint. Evidence: 47/47 tests, clean lint, production build passes.
+
 ## Implemented routes and behavior
 
 - `/buyer` is open without signup. Traders can reach it through Browse market; the buyer header links back to the trader workspace.

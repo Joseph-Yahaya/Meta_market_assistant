@@ -179,6 +179,16 @@ test('reach uses WAT day and excludes days outside the trailing seven calendar d
   await db.query("INSERT INTO buyer_interactions(search_id,shop_id,product_id,kind,at) VALUES($1,$2,$3,'shop_open','2026-11-03T23:30:00Z')",[search,otherShop,product]);
   assert.equal((await db.query("SELECT opens FROM shop_reach_daily WHERE shop_id=$1 AND day='2026-11-04'",[otherShop])).rows[0].opens,1);
 });
+test("stock just outside 5 km is excluded at 5 km and found at 10 km",async()=>{
+  const farTrader="10000000-0000-4000-a000-000000000009",farShop="20000000-0000-4000-a000-000000000009";
+  await db.query("INSERT INTO traders(id,display_name,simulated) VALUES($1,'Far owner',true)",[farTrader]);
+  await db.query("INSERT INTO shops(id,owner_id,name,category,latitude,longitude,landmark,simulated) VALUES($1,$2,'Far shop','provisions',9.214,7.324,'Simulated far pin',true)",[farShop,farTrader]);
+  await command("opening",5,"far-opening",{actor:farTrader,shop:farShop});
+  assert.equal((await db.query(DISCOVERY_SQL,[product,9.151,7.324,5,0,longitudeSpan(9.151,5)])).rows.length,0);
+  const wide=await db.query(DISCOVERY_SQL,[product,9.151,7.324,10,0,longitudeSpan(9.151,10)]);
+  assert.equal(wide.rows.length,1);
+  assert.ok(Number(wide.rows[0].distance_km)>5&&Number(wide.rows[0].distance_km)<10);
+});
 test("buyer records and digests store no raw coordinates",async()=>{
   const {queryDigest,visitorDigest}=await import("../src/lib/buyer.ts");
   const secret="c".repeat(32),visitor=visitorDigest("no-coords-visitor",secret);
