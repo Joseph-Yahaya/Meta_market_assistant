@@ -7,8 +7,8 @@ WITH candidates AS (
     6371*2*asin(sqrt(least(1.0,
       power(sin(radians(s.latitude-$2)/2),2)
       +cos(radians($2))*cos(radians(s.latitude))*power(sin(radians(s.longitude-$3)/2),2)))) AS distance_km
-  FROM discovery_stock d JOIN shops s ON s.id=d.shop_id
-  WHERE d.product_id=$1 AND d.estimated_qty>0 AND s.simulated
+  FROM discovery_stock d JOIN shops s ON s.id=d.shop_id JOIN products p ON p.id=d.product_id
+  WHERE d.product_id=$1 AND d.estimated_qty>0 AND s.simulated AND p.status='approved'
     AND d.confirmed_at >= now()-interval '72 hours'
     AND s.latitude BETWEEN $2-$4/111.0 AND $2+$4/111.0
     AND s.longitude BETWEEN $3-$6 AND $3+$6

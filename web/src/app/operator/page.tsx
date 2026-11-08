@@ -1,0 +1,75 @@
+"use client";
+import { useState } from "react";
+type Pending={id:string;name:string;brand:string;variant:string;size:string;unit:string;category:string;flag_reason:string|null;created_at:string;shop_name:string};
+const messages:Record<string,string>={
+  OPERATOR_DISABLED:"Product review is not enabled on this server.",
+  INVALID_OPERATOR_CODE:"That access code is incorrect.",
+  INVALID_REVIEW:"That review request is invalid.",
+  NOT_PENDING:"This product was already reviewed.",
+  PHOTO_MISSING:"No photo was kept for this product.",
+  REQUEST_FAILED:"Could not finish this request. Check the connection and try again.",
+};
+const friendly=(error:unknown)=>error instanceof Error?(messages[error.message]||messages.REQUEST_FAILED):messages.REQUEST_FAILED;
+const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Lagos"});
+export default function OperatorPage(){
+  const [code,setCode]=useState(""),[pending,setPending]=useState<Pending[]|null>(null),[photos,setPhotos]=useState<Record<string,string>>({}),[busy,setBusy]=useState(""),[notice,setNotice]=useState("");
+  async function load(){
+    if(!code.trim()){setNotice("Enter the owner access code first.");return;}
+    setBusy("load");setNotice("");
+    try {
+      const data=await (await fetch("/api/operator/custom-products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessCode:code}),cache:"no-store",signal:AbortSignal.timeout(40000)})).json().catch(()=>null);
+      if(!data||!Array.isArray(data.pending))throw new Error(data?.error?.code||"REQUEST_FAILED");
+      setPending(data.pending);setPhotos({});
+      if(!data.pending.length)setNotice("No flagged products are waiting for review.");
+    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+  }
+  async function review(productId:string,approve:boolean){
+    setBusy(productId);setNotice("");
+    try {
+      const response=await fetch("/api/operator/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessCode:code,productId,approve}),cache:"no-store",signal:AbortSignal.timeout(40000)});
+      const data=await response.json().catch(()=>null);
+      if(!response.ok)throw new Error(data?.error?.code||"REQUEST_FAILED");
+      setPending(list=>(list||[]).filter(p=>p.id!==productId));
+      setNotice(approve?"Approved. Buyers can now see this product.":"Rejected. The product stays hidden from buyers.");
+    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+  }
+  async function viewPhoto(productId:string){
+    if(photos[productId]){setPhotos(prev=>{const next={...prev};delete next[productId];return next;});return;}
+    setBusy(productId);setNotice("");
+    try {
+      const response=await fetch("/api/operator/photo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessCode:code,productId}),cache:"no-store",signal:AbortSignal.timeout(40000)});
+      if(!response.ok){const data=await response.json().catch(()=>null);throw new Error(data?.error?.code||"REQUEST_FAILED");}
+      const url=URL.createObjectURL(await response.blob());
+      setPhotos(prev=>({...prev,[productId]:url}));
+    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+  }
+  return <div className="workspace">
+    <header className="topbar"><span className="brand"><span className="brand-mark">M</span>Market Assistant <span className="brand-light">· Owner review</span></span></header>
+    <main className="dashboard">
+      <div className="panel">
+        <h2>Flagged products</h2>
+        <p className="muted">New trader products that automatic checks flagged wait here. Approve to show them to buyers, or reject to keep them hidden. Photos are kept only for review.</p>
+        <div className="field-row">
+          <label>Owner access code<input type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} placeholder="Access code"/></label>
+        </div>
+        <div className="inline-actions"><button className="primary" disabled={busy==="load"||!code.trim()} onClick={load}>{busy==="load"?"Loading…":"Show flagged products"}</button></div>
+        {notice&&<p className="notice" role="status">{notice}</p>}
+        {pending!==null&&!pending.length&&<div className="empty-state"><strong>Nothing waiting</strong><p>New flagged products will appear here for review.</p></div>}
+        {pending!==null&&pending.length>0&&pending.map(p=><div key={p.id} className="stock-row">
+          <div><strong>{p.brand?`${p.brand} `:""}{p.name} · {p.size}</strong>
+            <p className="hint">Unit: {p.unit} · Category: {p.category} · Shop: {p.shop_name}</p>
+            <p className="hint">Flag: {p.flag_reason||"manual review"} · Added {time(p.created_at)}</p>
+            {photos[p.id]&&<img className="preview" src={photos[p.id]} alt="Kept product photo"/>}
+          </div>
+          <div className="stock-number">
+            <div className="inline-actions">
+              <button className="text-button" disabled={busy===p.id} onClick={()=>viewPhoto(p.id)}>{photos[p.id]?"Hide photo":"View photo"}</button>
+              <button className="primary" disabled={busy===p.id} onClick={()=>review(p.id,true)}>Approve</button>
+              <button className="secondary" disabled={busy===p.id} onClick={()=>review(p.id,false)}>Reject</button>
+            </div>
+          </div>
+        </div>)}
+      </div>
+    </main>
+  </div>;
+}

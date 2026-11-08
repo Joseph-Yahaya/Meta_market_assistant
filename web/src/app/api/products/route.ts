@@ -1,5 +1,6 @@
 import { database } from "@/server/db";
 import { ApiError, failure, json } from "@/server/http";
+import { requireActor } from "@/server/auth";
 export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
@@ -7,10 +8,20 @@ export async function GET(request: Request) {
     if (query.length > 120) throw new ApiError(400,"QUERY_TOO_LONG");
     const offset = Number(url.searchParams.get("offset") || 0);
     if (!Number.isInteger(offset) || offset < 0 || offset > 10000) throw new ApiError(400,"INVALID_OFFSET");
-    const { rows } = await database().query(`SELECT p.id,p.name,p.brand,p.variant,p.size,p.unit,p.category,p.perishable
-      FROM products p WHERE $1 = '' OR strpos(lower(concat_ws(' ',p.brand,p.name,p.variant,p.size)),$1)>0
-      OR EXISTS (SELECT 1 FROM product_aliases a WHERE a.product_id=p.id AND strpos(a.alias,$1)>0)
-      ORDER BY p.brand,p.name,p.size,p.id LIMIT 51 OFFSET $2`,[query,offset]);
+    const scope = url.searchParams.get("scope") || "";
+    if (scope !== "" && scope !== "buyer" && scope !== "shop") throw new ApiError(400,"INVALID_SCOPE");
+    const match = `($1 = '' OR strpos(lower(concat_ws(' ',p.brand,p.name,p.variant,p.size)),$1)>0 OR EXISTS (SELECT 1 FROM product_aliases a WHERE a.product_id=p.id AND strpos(a.alias,$1)>0))`;
+    const cols = `p.id,p.name,p.brand,p.variant,p.size,p.unit,p.category,p.perishable,p.status,p.shop_id`;
+    let rows;
+    if (scope === "shop") {
+      const actor = await requireActor();
+      ({ rows } = await database().query(`SELECT ${cols} FROM products p WHERE ${match}
+        AND (p.shop_id IS NULL OR (p.shop_id IN (SELECT id FROM shops WHERE owner_id=$3 AND simulated) AND p.status<>'rejected'))
+        ORDER BY p.brand,p.name,p.size,p.id LIMIT 51 OFFSET $2`,[query,offset,actor]));
+    } else {
+      ({ rows } = await database().query(`SELECT ${cols} FROM products p WHERE ${match} AND p.status='approved'
+        ORDER BY p.brand,p.name,p.size,p.id LIMIT 51 OFFSET $2`,[query,offset]));
+    }
     return json({products:rows.slice(0,50),nextOffset:rows.length>50?offset+50:null});
   } catch(error) { return failure(error); }
 }

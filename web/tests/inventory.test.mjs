@@ -28,7 +28,7 @@ const command=async(action,quantity,key="request-0001",extras={})=>(await db.que
 const day=(days)=>new Date(new Date(`${date}T12:00:00Z`).getTime()+days*86400000).toISOString().slice(0,10);
 const discover=async()=> (await db.query(DISCOVERY_SQL,[product,9.151,7.324,5,0,longitudeSpan(9.151,5)])).rows;
 
-test("migrations are repeatable",async()=>{await migrate(db); assert.equal((await db.query("SELECT count(*)::int n FROM schema_migrations")).rows[0].n,6);});
+test("migrations are repeatable",async()=>{await migrate(db); assert.equal((await db.query("SELECT count(*)::int n FROM schema_migrations")).rows[0].n,7);});
 test("sale, recount and immutable correction history",async()=>{
   const opening=await command("opening",10);
   assert.equal((await command("sale",3,"request-sale")).estimatedQty,7);
@@ -235,3 +235,17 @@ test('sales summary excludes unpriced revenue and recount corrections, and uses 
   assert.equal((await db.query(SALES_SUMMARY_SQL,[otherShop,date])).rows[0].entries,0);
 });
 
+test("custom products stay hidden from buyers until approved",async()=>{
+  const custom="30000000-0000-4000-a000-000000000099";
+  await db.query("INSERT INTO products(id,name,brand,variant,size,unit,category,perishable,shop_id,status,created_by) VALUES($1,'Zobo','Kubwa','Standard','50cl','bottle','provisions',false,$2,'pending',$3)",[custom,shop,actor]);
+  await command("opening",6,"custom-opening",{product:custom});
+  assert.equal((await db.query(DISCOVERY_SQL,[custom,9.151,7.324,5,0,longitudeSpan(9.151,5)])).rows.length,0);
+  await db.query("UPDATE products SET status='approved' WHERE id=$1",[custom]);
+  const shown=(await db.query(DISCOVERY_SQL,[custom,9.151,7.324,5,0,longitudeSpan(9.151,5)])).rows;
+  assert.equal(shown.length,1);assert.equal(shown[0].shop_id,shop);
+});
+test("migration 007 keeps catalog rows approved and gates new statuses",async()=>{
+  const row=(await db.query("SELECT status,shop_id FROM products WHERE id=$1",[product])).rows[0];
+  assert.deepEqual([row.status,row.shop_id],["approved",null]);
+  await assert.rejects(db.query("INSERT INTO products(id,name,brand,variant,size,unit,category,perishable,status) VALUES('30000000-0000-4000-a000-000000000098','X','Y','Standard','1','piece','provisions',false,'draft')"),/check constraint/);
+});

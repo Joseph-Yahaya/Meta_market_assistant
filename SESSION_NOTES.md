@@ -166,3 +166,18 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   cropped trader photos stored, buyer photos brief and alert-only with
   consent; barcode deferred; minimum 5 in 24 hours; household and
   personal care in, medicines and regulated goods out.
+
+## 8 November 2026 - Feature N built (add a product by photo, photo-first)
+
+- Migration 007 adds shop_id/status/photo_path/flag_reason/created_by/created_at
+  plus the bottle unit. Additive; catalog rows default to approved. Applies
+  automatically on the next dev-server restart; demo data untouched.
+- Trader flow: "Not in your list. Add it with a photo" button, camera capture,
+  optional back-label photo, AI proposal card with Yes/No, picture unit
+  buttons, "Is it one of these?" closest list, typed-name fallback with the
+  same unit buttons. Regulated goods refused in code; 10 new products/day.
+- Cropped photos kept in ignored web/.local-uploads/ only. Owner review list
+  at /operator (access code in DEMO_ACCESS_CODE), approve/reject, photo view.
+- Gates: npm test 71/71, npm run lint 0 errors, npm run build green.
+  Owner must restart the dev server once so 007 applies, then run the
+  browser checklist from the handoff message.

@@ -1,4 +1,4 @@
-export type ExtractedEntry={action:"sale"|"restock"|"recount"|null;item:string;quantity:number|null;unit:"piece"|"pack"|"carton"|null;unitPriceNaira:string|null;needsClarification:boolean;question:string|null};
+export type ExtractedEntry={action:"sale"|"restock"|"recount"|null;item:string;quantity:number|null;unit:"piece"|"pack"|"carton"|"bottle"|null;unitPriceNaira:string|null;needsClarification:boolean;question:string|null};
 export class MetaError extends Error {
   code: string;
   constructor(code: string) {super(code);this.code=code;}
@@ -25,7 +25,7 @@ export function validateExtraction(value: unknown): ExtractedEntry {
     || !["sale","restock","recount",null].includes(v.action as string|null)
     || typeof v.item!=="string" || v.item.length>160
     || v.quantity!==null && (typeof v.quantity!=="number" || !Number.isSafeInteger(v.quantity) || v.quantity<0 || v.quantity>100000)
-    || !["piece","pack","carton",null].includes(v.unit as string|null)
+    || !["piece","pack","carton","bottle",null].includes(v.unit as string|null)
     || v.unitPriceNaira!==null && (typeof v.unitPriceNaira!=="string" || !/^\d{1,9}(\.\d{1,2})?$/.test(v.unitPriceNaira))
     || typeof v.needsClarification!=="boolean"
     || v.question!==null && (typeof v.question!=="string" || v.question.length>300)) throw new MetaError("INVALID_MODEL_RESPONSE");
@@ -37,7 +37,7 @@ export function validateExtraction(value: unknown): ExtractedEntry {
 }
 const schema={type:"object",additionalProperties:false,properties:{
   action:{type:["string","null"],enum:["sale","restock","recount",null]},item:{type:"string"},
-  quantity:{type:["integer","null"]},unit:{type:["string","null"],enum:["piece","pack","carton",null]},
+  quantity:{type:["integer","null"]},unit:{type:["string","null"],enum:["piece","pack","carton","bottle",null]},
   unitPriceNaira:{type:["string","null"]},needsClarification:{type:"boolean"},question:{type:["string","null"]},
 },required:["action","item","quantity","unit","unitPriceNaira","needsClarification","question"]};
 async function resultJson(response: Response) {

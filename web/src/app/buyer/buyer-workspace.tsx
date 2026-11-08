@@ -37,7 +37,7 @@ export default function BuyerWorkspace() {
   const slicesRef=useRef<Record<string,NearbyShop[]>>({});
   useEffect(()=>{
     let current=true;
-    async function load(){try{const products:CatalogProduct[]=[];let offset:number|null=0;do{const page:{products:CatalogProduct[];nextOffset:number|null}=await jsonRequest(`/api/products?offset=${offset}`);products.push(...page.products);offset=page.nextOffset;}while(offset!==null&&products.length<1000);if(current){setCatalog(products);setCatalogError("");}}catch(error){if(current)setCatalogError(errorText(error));}}
+    async function load(){try{const products:CatalogProduct[]=[];let offset:number|null=0;do{const page:{products:CatalogProduct[];nextOffset:number|null}=await jsonRequest(`/api/products?scope=buyer&offset=${offset}`);products.push(...page.products);offset=page.nextOffset;}while(offset!==null&&products.length<1000);if(current){setCatalog(products);setCatalogError("");}}catch(error){if(current)setCatalogError(errorText(error));}}
     void load();void jsonRequest<{metaConfigured:boolean}>("/api/status").then(value=>{if(current)setMetaEnabled(value.metaConfigured);}).catch(()=>{});
     return()=>{current=false;};
   },[catalogRetry]);

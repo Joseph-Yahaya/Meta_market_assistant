@@ -15,7 +15,8 @@ export async function prepareEntry(actor: string,shop: unknown,input: unknown) {
   const shopId=await ownedShop(actor,shop);
   let entry;
   try {entry=validateEntry(input);} catch(error) {throw new ApiError(400,(error as Error).message);}
-  const {rows}=await database().query("SELECT id,name,brand,variant,size,unit,perishable FROM products WHERE id=$1",[entry.productId]);
+  const {rows}=await database().query("SELECT id,name,brand,variant,size,unit,perishable,shop_id,status FROM products WHERE id=$1",[entry.productId]);
+  if (rows.length && ((rows[0].shop_id && rows[0].shop_id!==shopId) || rows[0].status==="rejected")) throw new ApiError(400,"UNKNOWN_PRODUCT");
   if (!rows.length) throw new ApiError(400,"UNKNOWN_PRODUCT");
   if (!rows[0].perishable && entry.expiryDate) throw new ApiError(400,"INVALID_EXPIRY");
   let expected: number|null=null;
@@ -35,6 +36,8 @@ export async function confirmEntry(actor: string,token: unknown) {
     await client.query("BEGIN");
     const owner=await client.query("SELECT id FROM shops WHERE id=$1 AND owner_id=$2 AND simulated FOR UPDATE",[shop,actor]);
     if (!owner.rows.length) throw new ApiError(403,"FORBIDDEN");
+    const usable=await client.query("SELECT shop_id,status FROM products WHERE id=$1",[entry.productId]);
+    if (!usable.rows.length || (usable.rows[0].shop_id && usable.rows[0].shop_id!==shop) || usable.rows[0].status==="rejected") throw new ApiError(409,"PRODUCT_UNAVAILABLE");
     const previous=await client.query("SELECT result FROM stock_commands WHERE shop_id=$1 AND idempotency_key=$2 AND actor_id=$3",[shop,key,actor]);
     let result;
     if (previous.rows.length) result={...previous.rows[0].result,replayed:true};
