@@ -6,6 +6,8 @@ import { pcmToWav, normaliseVolume, trimSilence } from "@/lib/audio";
 import { cleanEntryText, likelyAction } from "@/lib/entry-text";
 import { prepareProductPhoto } from "@/lib/image-prep";
 import { validateCustomProduct, findClosestProducts, isRegulatedProduct, mergeProposals } from "@/lib/custom-products";
+import { polishProposal, pluralizeUnit } from "@/lib/proposal-polish";
+import type { PolishedProposal } from "@/lib/proposal-polish";
 import { catalogWords } from "@/lib/catalog-match";
 import type { ImageProposal } from "@/lib/meta-client";
 import { locationErrorMessage } from "@/lib/geolocation";
@@ -17,9 +19,9 @@ type Product={id:string;name:string;brand:string;variant:string;size:string;unit
 type PhotoData={bytes:Uint8Array<ArrayBuffer>;url:string};
 type NewProductFlow=null|{stage:"capture";hint:string}
   |{stage:"preview";hint:string;photo:PhotoData;back:PhotoData|null}
-  |{stage:"proposal";hint:string;photo:PhotoData;back:PhotoData|null;proposal:ImageProposal}
-  |{stage:"units";hint:string;photo:PhotoData;proposal:ImageProposal;unit:string}
-  |{stage:"duplicates";hint:string;photo:PhotoData;proposal:ImageProposal;unit:string;closest:Product[]}
+  |{stage:"proposal";hint:string;photo:PhotoData;back:PhotoData|null;proposal:PolishedProposal}
+  |{stage:"units";hint:string;photo:PhotoData;proposal:PolishedProposal;unit:string}
+  |{stage:"duplicates";hint:string;photo:PhotoData;proposal:PolishedProposal;unit:string;closest:Product[]}
   |{stage:"typed";hint:string;photo:PhotoData;typedName:string;typedBrand:string;typedSize:string;unit:string};
 type Shop={id:string;name:string;landmark:string;location_verified:boolean};
 type Batch={batch_id:string;product_id:string;name:string;brand:string;size:string;unit:string;expiry_date:string|null;estimated_qty:number;confirmed_at:string|null};
@@ -37,7 +39,7 @@ const messages:Record<string,string>={
   INSUFFICIENT_STOCK_RECOUNT_REQUIRED:"That sale exceeds available stock. Check the quantity or recount the batch first.",
   CONFIRMATION_EXPIRED:"This review expired. Review the details again before saving.",STOCK_CHANGED_REVIEW_AGAIN:"The batch changed while you were reviewing it. Refresh stock and recount again.",
   INVALID_CONFIRMATION:"This review is no longer valid. Please create a new review.",TOO_MANY_ATTEMPTS:"Too many attempts. Please wait 15 minutes before trying again.",DAILY_LIMIT_REACHED:"Daily AI limit reached. Continue with the manual form below; limits reset tomorrow.",
-  PRODUCT_UNAVAILABLE:"This product is no longer available. Pick another product.",REGULATED_PRODUCT:"Medicines and regulated goods cannot be added here.",DUPLICATE_PRODUCT:"This product is already in the list. Please use the existing one.",PRODUCT_DAILY_LIMIT:"You have added 10 new products today. Please try again tomorrow.",PHOTO_REQUIRED:"A photo is required to add a product.",IMAGE_TYPE_UNSUPPORTED:"Please choose a JPEG, PNG or WebP photo.",IMAGE_TOO_LARGE:"That photo is too large. Try a smaller one.",IMAGE_UNREADABLE:"That photo could not be read. Try another one.",IMAGE_METADATA_PRESENT:"That photo still has hidden location data. Please retake it in the app.",NOT_A_PRODUCT:"That photo does not show a product. Please retake it.",
+  PRODUCT_UNAVAILABLE:"This product is no longer available. Pick another product.",REGULATED_PRODUCT:"Medicines and regulated goods cannot be added here.",DUPLICATE_PRODUCT:"This product is already in the list. Please use the existing one.",PRODUCT_DAILY_LIMIT:"You have added 10 new products today. Please try again tomorrow.",INVALID_PRODUCT_NAME:"Give the product a name between 2 and 80 characters.",INVALID_PRODUCT_BRAND:"Keep the brand within 80 characters.",INVALID_PRODUCT_VARIANT:"Keep the variant within 40 characters.",INVALID_PRODUCT_SIZE:"Give the size within 40 characters, for example 70g.",INVALID_PRODUCT_UNIT:"Choose piece, pack, carton or bottle.",INVALID_PRODUCT_CATEGORY:"Choose a valid product category.",PHOTO_REQUIRED:"A photo is required to add a product.",IMAGE_TYPE_UNSUPPORTED:"Please choose a JPEG, PNG or WebP photo.",IMAGE_TOO_LARGE:"That photo is too large. Try a smaller one.",IMAGE_UNREADABLE:"That photo could not be read. Try another one.",IMAGE_METADATA_PRESENT:"That photo still has hidden location data. Please retake it in the app.",NOT_A_PRODUCT:"That photo does not show a product. Please retake it.",
   UNDO_EXPIRED:"That entry is older than a minute and can no longer be undone. Correct it with a recount.",UNDO_BLOCKED:"This entry cannot be undone because stock changed afterwards. Correct it with a recount.",AUDIO_UNREADABLE:"This audio file could not be decoded in your browser. Try a WAV or MP3 file instead.",OPENING_EXISTS:"Opening stock already exists for this product. Use restock or recount instead.",INVALID_DATE:"Enter a valid date.",
   INVALID_BATCH:"Choose the correct batch for this product.",AUDIO_LIMIT_30_SECONDS:"Keep recordings to 30 seconds or less.",INVALID_WAV:"The recording could not be read. Try another recording or type instead.",
 };
@@ -58,7 +60,7 @@ export default function TraderWorkspace() {
   const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false});
   const [shops,setShops]=useState<Shop[]>([]),[shopId,setShopId]=useState("");
   const [stock,setStock]=useState<Batch[]>([]),[events,setEvents]=useState<Event[]>([]),[products,setProducts]=useState<Product[]>([]);
-  const [refresh,setRefresh]=useState(0),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[receipt,setReceipt]=useState("");
+  const [refresh,setRefresh]=useState(0),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[receipt,setReceipt]=useState(""),[photoNotice,setPhotoNotice]=useState("");
   const [text,setText]=useState(""),[filter,setFilter]=useState(""),[productId,setProductId]=useState("");
   const [action,setAction]=useState<StockEntry["action"]>("sale"),[quantity,setQuantity]=useState("1"),[price,setPrice]=useState(""),[expiry,setExpiry]=useState("");
   const [batchId,setBatchId]=useState(""),[correction,setCorrection]=useState<string|null>(null),[review,setReview]=useState<Review|null>(null);
@@ -69,6 +71,7 @@ export default function TraderWorkspace() {
   const [addPhoto,setAddPhoto]=useState<NewProductFlow>(null);
   const discardRecording=useRef(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),mounted=useRef(true);
+  const noticeRef=useRef<HTMLDivElement|null>(null),photoNoticeRef=useRef<HTMLParagraphElement|null>(null),rejectedPhoto=useRef<string|null>(null);
   const product=products.find(p=>p.id===productId),shop=shops.find(s=>s.id===shopId);
   const mismatch=Boolean(product&&suggestedUnit&&product.unit!==suggestedUnit);
 
@@ -95,6 +98,8 @@ export default function TraderWorkspace() {
     const timer=setTimeout(()=>setUndo(u=>u&&u.left>1?{...u,left:u.left-1}:null),1000);
     return()=>clearTimeout(timer);
   },[undo]);
+  useEffect(()=>{noticeRef.current?.scrollIntoView({block:"nearest"});},[notice,receipt]);
+  useEffect(()=>{photoNoticeRef.current?.scrollIntoView({block:"nearest"});},[photoNotice]);
 
   function setShopPin(){
     if(!("geolocation" in navigator)){setNotice(locationErrorMessage(2,"keep the demo pin"));return;}
@@ -170,22 +175,34 @@ export default function TraderWorkspace() {
     const response=await fetch(url,{method:"POST",headers:{"Content-Type":mime},body:bytes,cache:"no-store",signal:AbortSignal.timeout(90000)});
     const data=await response.json().catch(()=>null);if(!response.ok)throw new Error(data?.error?.code||"REQUEST_FAILED");return data;
   }
+  function closePhotoPanel(){
+    if(addPhoto&&addPhoto.stage!=="capture"){
+      URL.revokeObjectURL(addPhoto.photo.url);
+      if((addPhoto.stage==="preview"||addPhoto.stage==="proposal")&&addPhoto.back)URL.revokeObjectURL(addPhoto.back.url);
+    }
+    rejectedPhoto.current=null;setPhotoNotice("");setAddPhoto(null);
+  }
   async function capturePhoto(file:File,which:"photo"|"back"){
-    if(!addPhoto)return;setBusy("photo");setNotice("");
+    if(!addPhoto)return;setBusy("photo");setPhotoNotice("");
     try {
       const prepared=await prepareProductPhoto(file);
       const bytes=new Uint8Array(prepared.bytes);
       const data={bytes,url:URL.createObjectURL(new Blob([bytes],{type:"image/jpeg"}))};
+      if(addPhoto.stage==="preview"){const old=which==="back"?addPhoto.back:addPhoto.photo;if(old)URL.revokeObjectURL(old.url);}
+      rejectedPhoto.current=null;
       setAddPhoto(flow=>{
         if(!flow)return flow;
         if(flow.stage==="capture")return {stage:"preview",hint:flow.hint,photo:data,back:null};
         if(flow.stage==="preview")return which==="back"?{...flow,back:data}:{...flow,photo:data};
         return flow;
       });
-    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+    }catch(error){setPhotoNotice(friendly(error));}finally{setBusy("");}
   }
   async function analyzePhotos(){
-    if(!addPhoto||addPhoto.stage!=="preview")return;setBusy("photo");setNotice("");
+    if(!addPhoto||addPhoto.stage!=="preview")return;
+    const sig=`${addPhoto.photo.bytes.length}:${Array.from(addPhoto.photo.bytes.slice(0,8)).join(",")}`;
+    if(rejectedPhoto.current===sig){setPhotoNotice("That photo was already rejected. Take a different photo or tap Cancel.");return;}
+    setBusy("photo");setPhotoNotice("");
     try {
       const first=await postPhoto("/api/images/analyze",addPhoto.photo.bytes,"image/jpeg");
       let proposal:ImageProposal=first.proposal;
@@ -193,18 +210,18 @@ export default function TraderWorkspace() {
         const second=await postPhoto("/api/images/analyze",addPhoto.back.bytes,"image/jpeg");
         proposal=mergeProposals(proposal,second.proposal);
       }
-      if(isRegulatedProduct({name:proposal.name||"",brand:proposal.brand||"",category:proposal.category||""})){setAddPhoto(null);setNotice(friendly(new Error("REGULATED_PRODUCT")));return;}
-      setAddPhoto({stage:"proposal",hint:addPhoto.hint,photo:addPhoto.photo,back:addPhoto.back,proposal});
+      if(isRegulatedProduct({name:proposal.name||"",brand:proposal.brand||"",category:proposal.category||""})){closePhotoPanel();setNotice(friendly(new Error("REGULATED_PRODUCT")));return;}
+      setAddPhoto({stage:"proposal",hint:addPhoto.hint,photo:addPhoto.photo,back:addPhoto.back,proposal:polishProposal(proposal)});
     }catch(error){
-      if(error instanceof Error&&error.message==="NOT_A_PRODUCT"){setNotice(friendly(error));return;}
+      if(error instanceof Error&&error.message==="NOT_A_PRODUCT"){rejectedPhoto.current=sig;setPhotoNotice(friendly(error));return;}
       const photo=addPhoto.photo;
       setAddPhoto({stage:"typed",hint:addPhoto.hint,photo,typedName:"",typedBrand:"",typedSize:"",unit:"piece"});
-      setNotice("The photo could not be read. Type the name instead.");
+      setPhotoNotice("The photo could not be read. Type the name instead.");
     }finally{setBusy("");}
   }
   function answerProposal(yes:boolean){
     if(!addPhoto||addPhoto.stage!=="proposal")return;
-    if(!yes){setAddPhoto({stage:"typed",hint:addPhoto.hint,photo:addPhoto.photo,typedName:"",typedBrand:"",typedSize:"",unit:addPhoto.proposal.unit||"piece"});setNotice("Describe it yourself. Nothing has been saved.");return;}
+    if(!yes){setAddPhoto({stage:"typed",hint:addPhoto.hint,photo:addPhoto.photo,typedName:"",typedBrand:"",typedSize:"",unit:addPhoto.proposal.unit||"piece"});setPhotoNotice("Describe it yourself. Nothing has been saved.");return;}
     setAddPhoto({stage:"units",hint:addPhoto.hint,photo:addPhoto.photo,proposal:addPhoto.proposal,unit:addPhoto.proposal.unit||"piece"});
   }
   function continueToDuplicates(){
@@ -215,22 +232,21 @@ export default function TraderWorkspace() {
   async function saveCustom(typed:boolean){
     const flow=addPhoto;
     if(!flow||(flow.stage!=="duplicates"&&flow.stage!=="typed"))return;
-    setBusy("photo");setNotice("");
+    setBusy("photo");setPhotoNotice("");
     try {
-      const fields=flow.stage==="duplicates"
-        ?{name:flow.proposal.name||"",brand:flow.proposal.brand||"",size:flow.proposal.size||"",unit:flow.unit,category:flow.proposal.category||"provisions"}
-        :{name:flow.typedName,brand:flow.typedBrand,size:flow.typedSize||"Standard",unit:flow.unit,category:"provisions"};
-      try {validateCustomProduct(fields);} catch(error){setNotice(friendly(error));return;}
+      const polished=flow.stage==="duplicates"?flow.proposal:polishProposal({name:flow.typedName,brand:flow.typedBrand,size:flow.typedSize,unit:flow.unit,category:""});
+      const fields={name:polished.name,brand:polished.brand,variant:polished.variant,size:polished.size||"Standard",unit:flow.unit,category:polished.category};
+      try {validateCustomProduct(fields);} catch(error){setPhotoNotice(friendly(error));return;}
       const form=new FormData();
-      form.set("shopId",shopId);form.set("name",fields.name);form.set("brand",fields.brand);form.set("size",fields.size);form.set("unit",fields.unit);form.set("category",fields.category);
+      form.set("shopId",shopId);form.set("name",fields.name);form.set("brand",fields.brand);form.set("variant",fields.variant);form.set("size",fields.size);form.set("unit",fields.unit);form.set("category",fields.category);
       if(typed)form.set("typed","true");
       form.set("photo",new Blob([flow.photo.bytes],{type:"image/jpeg"}),"photo.jpg");
       const response=await fetch("/api/products/custom",{method:"POST",body:form,cache:"no-store",signal:AbortSignal.timeout(60000)});
       const data=await response.json().catch(()=>null);
       if(!response.ok)throw new Error(data?.error?.code||"REQUEST_FAILED");
-      setAddPhoto(null);setFilter(data.product.name);changeProduct(data.product.id);setRefresh(v=>v+1);
+      closePhotoPanel();changeProduct(data.product.id);setFilter("");setAction("restock");setActionPreset("restock");setAskAction(null);setRefresh(v=>v+1);
       setNotice(data.message||"Saved.");
-    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+    }catch(error){setPhotoNotice(friendly(error));}finally{setBusy("");}
   }
   async function undoEntry() {
     if(!undo)return;setBusy("undo");setNotice("");
@@ -243,8 +259,8 @@ export default function TraderWorkspace() {
     if(!review)return;setBusy("confirm");setNotice("");
     try {
       const result=await post<{estimatedQty:number;replayed:boolean;commandId:string}>("/api/entries/confirm",{token:review.token});
-      setReceipt(result.replayed?"This entry was already recorded. No second change was made.":`${review.entry.action==="recount"?"Recount":"Stock entry"} recorded. ${label(review.product)}: ${result.estimatedQty} ${review.product.unit}s estimated across batches.`);
-      setReview(null);setCorrection(null);setRefresh(v=>v+1);setUndo(!result.replayed&&result.commandId?{commandId:result.commandId,left:60}:null);
+      setReceipt(result.replayed?"This entry was already recorded. No second change was made.":`${review.entry.action==="recount"?"Recount":"Stock entry"} recorded. ${label(review.product)}: ${result.estimatedQty} ${pluralizeUnit(review.product.unit,result.estimatedQty)} estimated across batches.`);
+      setReview(null);setCorrection(null);setRefresh(v=>v+1);setUndo(!result.replayed&&result.commandId?{commandId:result.commandId,left:60}:null);setText("");setFilter("");setQuantity("1");setPrice("");setExpiry("");setAction("sale");setActionPreset(null);setAskAction(null);setBatchId("");setClarification("");setClarified(false);setProcessed(null);setSuggestedUnit(null);setUnitChecked(false);
     }catch(error){setNotice(friendly(error));if(error instanceof Error&&["CONFIRMATION_EXPIRED","STOCK_CHANGED_REVIEW_AGAIN","INVALID_CONFIRMATION"].includes(error.message))setReview(null);}
     finally{setBusy("");}
   }
@@ -299,8 +315,8 @@ export default function TraderWorkspace() {
       <div className="dashboard-heading"><div><span className="eyebrow">TRADER WORKSPACE</span><h1>{shop.name}</h1><p className="muted">{shop.landmark}</p></div><button className="secondary" onClick={()=>setRefresh(v=>v+1)} disabled={Boolean(busy)}>Refresh stock</button></div>
       {shops.length>1&&<label>Choose your shop<select value={shopId} onChange={e=>{setShopId(e.target.value);setReview(null);setReceipt("");}}>{shops.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
       <div className="stats"><div><span>Products with stock</span><strong>{new Set(stock.filter(b=>b.estimated_qty>0).map(b=>b.product_id)).size}</strong></div><div><span>Batches tracked</span><strong>{stock.length}</strong></div><div><span>Location status</span><strong className="small-stat">{shop.location_verified?"Verified":"Needs verification"}</strong></div></div>
-      {notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}{undo&&<div className="inline-actions"><button className="secondary" disabled={Boolean(busy)} onClick={undoEntry}>Undo this entry ({undo.left}s)</button></div>}
-      <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><div className="work-grid"><section className="panel"><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
+      {/* Entry messages render inside the record panel, next to the actions. */}
+      <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><div className="work-grid"><section className="panel"><div ref={noticeRef}>{notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}{undo&&<div className="inline-actions"><button className="secondary" disabled={Boolean(busy)} onClick={undoEntry}>Undo this entry ({undo.left}s)</button></div>}</div><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
         <div className="action-first" role="group" aria-label="Choose the action first"><span className="hint">First, what happened?</span><div className="inline-actions">{actionButtons(null)}</div></div><label className="text-entry">Type a sale, restock or recount<textarea maxLength={2000} rows={3} placeholder="Sold 3 packs of Indomie chicken noodles, 70g" value={text} onChange={e=>setText(e.target.value)}/></label>
         <div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||recording||!text.trim()||!status?.metaConfigured} onClick={interpret}>{busy==="interpret"?"Understanding…":"Interpret entry"}</button><span className="hint">{status?.metaConfigured?"Check every suggested field.":"AI is not connected. Use the manual form below."}</span></div>
         <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. WhatsApp voice notes (.ogg) work: they are decoded and converted in your browser before upload. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/opus,audio/webm,.wav,.mp3,.m4a,.ogg,.opus,.webm" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>{processed&&<section className="review" aria-label="How this was processed"><h3>How this was processed</h3><p className="hint">Transcript is editable in the text box above. Nothing is saved until you confirm.</p><dl><div><dt>Transcript</dt><dd>{processed.transcript||"Typed entry (no recording)"}</dd></div><div><dt>Parsed</dt><dd>{processed.action||"-"} | {processed.quantity||"-"} {processed.unit||""} | {processed.item||"-"}</dd></div><div><dt>Models</dt><dd>{status?.textModel||"muse-spark-1.3"} (extract) + {status?.voiceModel||"muse-voice-transcribe-1.0"} (transcribe)</dd></div></dl></section>}
@@ -310,23 +326,23 @@ export default function TraderWorkspace() {
         <form className="form-stack" onSubmit={prepare} onChange={()=>setReview(null)}>
           <label>Find a product<input placeholder="Brand, name or pack size" value={filter} onChange={e=>setFilter(e.target.value)}/></label>
           <label>Exact product and size<select required value={productId} onChange={e=>changeProduct(e.target.value)}><option value="">Choose a product</option>{filtered.map(p=><option key={p.id} value={p.id}>{label(p)} · {p.unit}</option>)}</select></label>{!filtered.length&&filter.trim()&&<div className="add-photo-cta"><button type="button" className="primary" onClick={()=>setAddPhoto({stage:"capture",hint:filter})}>Not in your list. Add it with a photo</button></div>}{!filtered.length&&!filter.trim()&&<p className="hint">No products in the catalog yet.</p>}
-          <div className="field-row"><label>Action<select value={action} onChange={e=>{setAction(e.target.value as StockEntry["action"]);setCorrection(null);setActionPreset(null);}}><option value="sale">Sale</option><option value="restock">Restock</option><option value="recount">Recount / correction</option><option value="opening">Opening stock</option></select></label><label>{action==="recount"?"Physical batch count":"Quantity"}{product?` (${product.unit}s)`:""}<input required type="number" step={1} min={action==="sale"||action==="restock"?1:0} max={100000} value={quantity} onChange={e=>{setQuantity(e.target.value);setUnitChecked(false);}}/></label></div>
+          <div className="field-row"><label>Action<select value={action} onChange={e=>{setAction(e.target.value as StockEntry["action"]);setCorrection(null);setActionPreset(null);}}><option value="sale">Sale</option><option value="restock">Restock</option><option value="recount">Recount / correction</option><option value="opening">Opening stock</option></select></label><label>{action==="recount"?"Physical batch count":"Quantity"}{product?` (${product.unit})`:""}<input required type="number" step={1} min={action==="sale"||action==="restock"?1:0} max={100000} value={quantity} onChange={e=>{setQuantity(e.target.value);setUnitChecked(false);}}/></label></div>
           {mismatch&&<label className="check"><input type="checkbox" checked={unitChecked} onChange={e=>setUnitChecked(e.target.checked)}/><span>The suggestion used {suggestedUnit}s. I corrected the quantity to {product?.unit}s. No automatic pack conversion is applied.</span></label>}
           {action==="recount"?<><label>Batch being counted<select required value={batchId} onChange={e=>{setBatchId(e.target.value);setCorrection(null);}}><option value="">Choose the batch</option>{ownedBatches.map(b=><option key={b.batch_id} value={b.batch_id}>{b.expiry_date?`Expires ${b.expiry_date.slice(0,10)}`:"No expiry recorded"} · estimated {b.estimated_qty}</option>)}</select></label>{correction&&<p className="hint">This recount will reference the selected recent entry. The old entry stays in the history.</p>}</>:<label>Price per {product?.unit||"selling unit"} (₦, optional)<input inputMode="decimal" placeholder="e.g. 250.00" value={price} onChange={e=>setPrice(e.target.value)}/></label>}
           {["opening","restock"].includes(action)&&product?.perishable&&<label>Batch expiry (optional)<input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></label>}
           <button className="primary" disabled={Boolean(busy)||!product}>{busy==="prepare"?"Preparing review…":"Review this entry"}</button>
         </form>
         {addPhoto&&<section className="add-photo" aria-label="Add a product with a photo">
-        {addPhoto.stage==="capture"&&<><h3>Add with a photo</h3><p className="hint">Take one clear photo of the product{addPhoto.hint.trim()?` (${addPhoto.hint.trim()})`:""}. Nothing is saved yet.</p><label className="file-label">Take a photo<input aria-label="Take a product photo" type="file" accept="image/*" capture="environment" disabled={Boolean(busy)} onChange={e=>{const file=e.target.files?.[0];if(file)void capturePhoto(file,"photo");e.target.value="";}}/></label><div className="inline-actions"><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
-        {addPhoto.stage==="preview"&&<><h3>Check the photo</h3><img className="preview" src={addPhoto.photo.url} alt="Product photo preview"/><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={analyzePhotos}>{busy==="photo"?"Reading the photo…":"Read this photo"}</button></div>{addPhoto.back?<img className="preview" src={addPhoto.back.url} alt="Back label preview"/>:<label className="file-label">Show the back (optional)<input aria-label="Take a back label photo" type="file" accept="image/*" capture="environment" disabled={Boolean(busy)} onChange={e=>{const file=e.target.files?.[0];if(file)void capturePhoto(file,"back");e.target.value="";}}/></label>}<div className="inline-actions"><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
-        {addPhoto.stage==="proposal"&&<><h3>Is this right?</h3><img className="preview" src={addPhoto.photo.url} alt="Product photo"/><dl className="proposal-fields"><div><dt>Name</dt><dd>{addPhoto.proposal.name||"—"}</dd></div><div><dt>Brand</dt><dd>{addPhoto.proposal.brand||"—"}</dd></div><div><dt>Size</dt><dd>{addPhoto.proposal.size||"—"}</dd></div><div><dt>Suggested unit</dt><dd>{addPhoto.proposal.unit||"piece"}</dd></div><div><dt>Category</dt><dd>{addPhoto.proposal.category||"provisions"}</dd></div></dl><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>answerProposal(true)}>Yes, continue</button><button className="secondary" disabled={Boolean(busy)} onClick={()=>answerProposal(false)}>No, describe it</button></div><div className="inline-actions"><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
-        {addPhoto.stage==="units"&&<><h3>How is it sold?</h3><p className="hint">Tap the right unit. No typing needed.</p><div className="inline-actions">{unitButtons(addPhoto.unit,addPhoto.proposal.unit,u=>setAddPhoto(f=>f&&f.stage==="units"?{...f,unit:u}:f))}</div><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={continueToDuplicates}>Continue</button><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
-        {addPhoto.stage==="duplicates"&&<><h3>Is it one of these?</h3>{addPhoto.closest.length?addPhoto.closest.map(p=><div key={p.id} className="closest-row"><span>{label(p)}</span><button className="text-button" onClick={()=>{changeProduct(p.id);setFilter(label(p));setAddPhoto(null);setNotice("Using the existing product. Nothing new was saved.");}} disabled={Boolean(busy)}>Use this</button></div>):<p className="hint">No close matches in your list.</p>}<div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>saveCustom(false)}>{busy==="photo"?"Saving…":"No, add as new"}</button><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
-        {addPhoto.stage==="typed"&&<><h3>Describe it yourself</h3><p className="hint">Type the product name. Nothing is saved until you tap Save.</p><label>Product name<input required maxLength={80} value={addPhoto.typedName} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedName:e.target.value}:f)}/></label><div className="field-row"><label>Brand (optional)<input maxLength={80} value={addPhoto.typedBrand} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedBrand:e.target.value}:f)}/></label><label>Size (optional)<input maxLength={40} placeholder="e.g. 70g" value={addPhoto.typedSize} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedSize:e.target.value}:f)}/></label></div><p className="hint">How is it sold?</p><div className="inline-actions">{unitButtons(addPhoto.unit,null,u=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,unit:u}:f))}</div><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>saveCustom(true)}>{busy==="photo"?"Saving…":"Save this product"}</button><button className="text-button" onClick={()=>setAddPhoto(null)} disabled={Boolean(busy)}>Cancel</button></div></>}
+        {addPhoto.stage==="capture"&&<><h3>Add with a photo</h3><p className="hint">Take one clear photo of the product{addPhoto.hint.trim()?` (${addPhoto.hint.trim()})`:""}. Nothing is saved yet.</p><label className="file-label">Take a photo<input aria-label="Take a product photo" type="file" accept="image/*" capture="environment" disabled={Boolean(busy)} onChange={e=>{const file=e.target.files?.[0];if(file)void capturePhoto(file,"photo");e.target.value="";}}/></label>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}<div className="inline-actions"><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div></>}
+        {addPhoto.stage==="preview"&&<><h3>Check the photo</h3><img className="preview" src={addPhoto.photo.url} alt="Product photo preview"/><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={analyzePhotos}>{busy==="photo"?"Reading the photo…":"Read this photo"}</button></div>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}{addPhoto.back?<img className="preview" src={addPhoto.back.url} alt="Back label preview"/>:<label className="file-label">Show the back (optional)<input aria-label="Take a back label photo" type="file" accept="image/*" capture="environment" disabled={Boolean(busy)} onChange={e=>{const file=e.target.files?.[0];if(file)void capturePhoto(file,"back");e.target.value="";}}/></label>}<div className="inline-actions"><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div></>}
+        {addPhoto.stage==="proposal"&&<><h3>Is this right?</h3><img className="preview" src={addPhoto.photo.url} alt="Product photo"/><dl className="proposal-fields"><div><dt>Name</dt><dd>{addPhoto.proposal.name||"—"}</dd></div><div><dt>Brand</dt><dd>{addPhoto.proposal.brand||"—"}</dd></div><div><dt>Variant</dt><dd>{addPhoto.proposal.variant}</dd></div><div><dt>Size</dt><dd>{addPhoto.proposal.size||"—"}</dd></div><div><dt>Suggested unit</dt><dd>{addPhoto.proposal.unit||"piece"}</dd></div><div><dt>Category</dt><dd>{addPhoto.proposal.category||"provisions"}</dd></div></dl><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>answerProposal(true)}>Yes, continue</button><button className="secondary" disabled={Boolean(busy)} onClick={()=>answerProposal(false)}>No, describe it</button></div>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}<div className="inline-actions"><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div></>}
+        {addPhoto.stage==="units"&&<><h3>How is it sold?</h3><p className="hint">Tap the right unit. No typing needed.</p><div className="inline-actions">{unitButtons(addPhoto.unit,addPhoto.proposal.unit,u=>setAddPhoto(f=>f&&f.stage==="units"?{...f,unit:u}:f))}</div><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={continueToDuplicates}>Continue</button><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}</>}
+        {addPhoto.stage==="duplicates"&&<><h3>Is it one of these?</h3>{addPhoto.closest.length?addPhoto.closest.map(p=><div key={p.id} className="closest-row"><span>{label(p)}</span><button className="text-button" onClick={()=>{changeProduct(p.id);setFilter(label(p));closePhotoPanel();setNotice("Using the existing product. Nothing new was saved.");}} disabled={Boolean(busy)}>Use this</button></div>):<p className="hint">No close matches in your list.</p>}<div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>saveCustom(false)}>{busy==="photo"?"Saving…":"No, add as new"}</button><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}</>}
+        {addPhoto.stage==="typed"&&<><h3>Describe it yourself</h3><p className="hint">Type the product name. Nothing is saved until you tap Save.</p><label>Product name<input required maxLength={80} value={addPhoto.typedName} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedName:e.target.value}:f)}/></label><div className="field-row"><label>Brand (optional)<input maxLength={80} value={addPhoto.typedBrand} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedBrand:e.target.value}:f)}/></label><label>Size (optional)<input maxLength={40} placeholder="e.g. 70g" value={addPhoto.typedSize} onChange={e=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,typedSize:e.target.value}:f)}/></label></div><p className="hint">How is it sold?</p><div className="inline-actions">{unitButtons(addPhoto.unit,null,u=>setAddPhoto(f=>f&&f.stage==="typed"?{...f,unit:u}:f))}</div><div className="inline-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>saveCustom(true)}>{busy==="photo"?"Saving…":"Save this product"}</button><button className="text-button" onClick={closePhotoPanel} disabled={Boolean(busy)}>Cancel</button></div>{photoNotice&&<p className="notice" role="status" ref={photoNoticeRef}>{photoNotice}</p>}</>}
       </section>}
-      {review&&<section className="review" aria-label="Confirm stock entry"><h3>Ready to record?</h3><p><strong>{label(review.product)}</strong></p><dl><div><dt>Action</dt><dd>{review.entry.action}</dd></div><div><dt>{review.entry.action==="recount"?"New batch count":"Quantity"}</dt><dd>{review.entry.quantity} {review.product.unit}s</dd></div>{review.entry.unitPriceKobo!==null&&<div><dt>Unit price</dt><dd>{new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN"}).format(review.entry.unitPriceKobo/100)}</dd></div>}{review.entry.expiryDate&&<div><dt>Expiry</dt><dd>{review.entry.expiryDate}</dd></div>}</dl><p className="hint">Review expires after 10 minutes. Retries of this review do not create a second entry.</p><div className="inline-actions"><button className="primary" onClick={confirm} disabled={Boolean(busy)}>{busy==="confirm"?"Saving…":"Confirm and save"}</button><button className="text-button" onClick={()=>setReview(null)} disabled={Boolean(busy)}>Cancel</button></div></section>}
-      </section><aside className="panel"><span className="eyebrow">ON YOUR SHELVES</span><h2>Estimated stock</h2><p className="muted">Counts are estimates. Recount a batch to confirm what is physically there.</p>{!stock.length?<div className="empty-state"><strong>No stock recorded yet</strong><p>Choose a product and use “Opening stock” to add your first batch.</p></div>:<div className="stock-list">{stock.map(b=><div className="stock-row" key={b.batch_id}><div><strong>{label(b)}</strong><p className="hint">{b.expiry_date?`Expiry ${b.expiry_date.slice(0,10)}`:"No expiry recorded"}</p><p className="hint">{b.confirmed_at?`Confirmed ${time(b.confirmed_at)}`:"Needs a recount"}</p></div><div className="stock-number"><strong>{b.estimated_qty}</strong><span>{b.unit}s</span><button className="text-button" disabled={Boolean(busy)} onClick={()=>{setFilter("");setProductId(b.product_id);setAction("recount");setBatchId(b.batch_id);setQuantity(String(b.estimated_qty));setCorrection(null);setReview(null);setClarification("");setSuggestedUnit(null);}}>Recount</button></div></div>)}</div>}
-        <div className="divider"/><h3>Recent updates</h3>{!events.length?<p className="hint">Confirmed entries will appear here.</p>:<div className="history-list">{events.map(e=><div className="history-row" key={e.id}><div><strong>{e.event_type} · {e.qty_delta>0?"+":""}{e.qty_delta} {e.unit}s</strong><p>{label(e)}</p><small>{time(e.event_at)}</small></div><button className="text-button" disabled={Boolean(busy)} onClick={()=>{setFilter("");setProductId(e.product_id);setAction("recount");setBatchId(e.batch_id);setQuantity("");setCorrection(e.id);setReview(null);setClarification("");setSuggestedUnit(null);}}>Correct by recount</button></div>)}</div>}
+      {review&&<section className="review" aria-label="Confirm stock entry"><h3>Ready to record?</h3><p><strong>{label(review.product)}</strong></p><dl><div><dt>Action</dt><dd>{review.entry.action}</dd></div><div><dt>{review.entry.action==="recount"?"New batch count":"Quantity"}</dt><dd>{review.entry.quantity} {pluralizeUnit(review.product.unit,review.entry.quantity)}</dd></div>{review.entry.unitPriceKobo!==null&&<div><dt>Unit price</dt><dd>{new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN"}).format(review.entry.unitPriceKobo/100)}</dd></div>}{review.entry.expiryDate&&<div><dt>Expiry</dt><dd>{review.entry.expiryDate}</dd></div>}</dl><p className="hint">Review expires after 10 minutes. Retries of this review do not create a second entry.</p><div className="inline-actions"><button className="primary" onClick={confirm} disabled={Boolean(busy)}>{busy==="confirm"?"Saving…":"Confirm and save"}</button><button className="text-button" onClick={()=>setReview(null)} disabled={Boolean(busy)}>Cancel</button></div></section>}
+      </section><aside className="panel"><span className="eyebrow">ON YOUR SHELVES</span><h2>Estimated stock</h2><p className="muted">Counts are estimates. Recount a batch to confirm what is physically there.</p>{!stock.length?<div className="empty-state"><strong>No stock recorded yet</strong><p>Choose a product and use “Opening stock” to add your first batch.</p></div>:<div className="stock-list">{stock.map(b=><div className="stock-row" key={b.batch_id}><div><strong>{label(b)}</strong><p className="hint">{b.expiry_date?`Expiry ${b.expiry_date.slice(0,10)}`:"No expiry recorded"}</p><p className="hint">{b.confirmed_at?`Confirmed ${time(b.confirmed_at)}`:"Needs a recount"}</p></div><div className="stock-number"><strong>{b.estimated_qty}</strong><span>{pluralizeUnit(b.unit,b.estimated_qty)}</span><button className="text-button" disabled={Boolean(busy)} onClick={()=>{setFilter("");setProductId(b.product_id);setAction("recount");setBatchId(b.batch_id);setQuantity(String(b.estimated_qty));setCorrection(null);setReview(null);setClarification("");setSuggestedUnit(null);}}>Recount</button></div></div>)}</div>}
+        <div className="divider"/><h3>Recent updates</h3>{!events.length?<p className="hint">Confirmed entries will appear here.</p>:<div className="history-list">{events.map(e=><div className="history-row" key={e.id}><div><strong>{e.event_type} · {e.qty_delta>0?"+":""}{e.qty_delta} {pluralizeUnit(e.unit,Math.abs(e.qty_delta))}</strong><p>{label(e)}</p><small>{time(e.event_at)}</small></div><button className="text-button" disabled={Boolean(busy)} onClick={()=>{setFilter("");setProductId(e.product_id);setAction("recount");setBatchId(e.batch_id);setQuantity("");setCorrection(e.id);setReview(null);setClarification("");setSuggestedUnit(null);}}>Correct by recount</button></div>)}</div>}
       </aside></div>
     </main>}
     <footer className="footer">AI Market Assistant · A local market, easier to find.<span>Demo only. Browse the market without a buyer account.</span></footer>

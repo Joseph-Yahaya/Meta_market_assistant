@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 type Pending={id:string;name:string;brand:string;variant:string;size:string;unit:string;category:string;flag_reason:string|null;created_at:string;shop_name:string};
 const messages:Record<string,string>={
   OPERATOR_DISABLED:"Product review is not enabled on this server.",
@@ -12,7 +12,9 @@ const messages:Record<string,string>={
 const friendly=(error:unknown)=>error instanceof Error?(messages[error.message]||messages.REQUEST_FAILED):messages.REQUEST_FAILED;
 const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Lagos"});
 export default function OperatorPage(){
-  const [code,setCode]=useState(""),[pending,setPending]=useState<Pending[]|null>(null),[photos,setPhotos]=useState<Record<string,string>>({}),[busy,setBusy]=useState(""),[notice,setNotice]=useState("");
+  const [code,setCode]=useState(""),[pending,setPending]=useState<Pending[]|null>(null),[photos,setPhotos]=useState<Record<string,string>>({}),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[rowNote,setRowNote]=useState<{id:string;text:string}|null>(null);
+  const noticeRef=useRef<HTMLParagraphElement|null>(null);
+  useEffect(()=>{noticeRef.current?.scrollIntoView({block:"nearest"});},[notice]);
   async function load(){
     if(!code.trim()){setNotice("Enter the owner access code first.");return;}
     setBusy("load");setNotice("");
@@ -24,24 +26,24 @@ export default function OperatorPage(){
     }catch(error){setNotice(friendly(error));}finally{setBusy("");}
   }
   async function review(productId:string,approve:boolean){
-    setBusy(productId);setNotice("");
+    setBusy(productId);setNotice("");setRowNote(null);
     try {
       const response=await fetch("/api/operator/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessCode:code,productId,approve}),cache:"no-store",signal:AbortSignal.timeout(40000)});
       const data=await response.json().catch(()=>null);
       if(!response.ok)throw new Error(data?.error?.code||"REQUEST_FAILED");
       setPending(list=>(list||[]).filter(p=>p.id!==productId));
       setNotice(approve?"Approved. Buyers can now see this product.":"Rejected. The product stays hidden from buyers.");
-    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+    }catch(error){setRowNote({id:productId,text:friendly(error)});}finally{setBusy("");}
   }
   async function viewPhoto(productId:string){
     if(photos[productId]){setPhotos(prev=>{const next={...prev};delete next[productId];return next;});return;}
-    setBusy(productId);setNotice("");
+    setBusy(productId);setNotice("");setRowNote(null);
     try {
       const response=await fetch("/api/operator/photo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessCode:code,productId}),cache:"no-store",signal:AbortSignal.timeout(40000)});
       if(!response.ok){const data=await response.json().catch(()=>null);throw new Error(data?.error?.code||"REQUEST_FAILED");}
       const url=URL.createObjectURL(await response.blob());
       setPhotos(prev=>({...prev,[productId]:url}));
-    }catch(error){setNotice(friendly(error));}finally{setBusy("");}
+    }catch(error){setRowNote({id:productId,text:friendly(error)});}finally{setBusy("");}
   }
   return <div className="workspace">
     <header className="topbar"><span className="brand"><span className="brand-mark">M</span>Market Assistant <span className="brand-light">· Owner review</span></span></header>
@@ -53,7 +55,7 @@ export default function OperatorPage(){
           <label>Owner access code<input type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} placeholder="Access code"/></label>
         </div>
         <div className="inline-actions"><button className="primary" disabled={busy==="load"||!code.trim()} onClick={load}>{busy==="load"?"Loading…":"Show flagged products"}</button></div>
-        {notice&&<p className="notice" role="status">{notice}</p>}
+        {notice&&<p className="notice" role="status" ref={noticeRef}>{notice}</p>}
         {pending!==null&&!pending.length&&<div className="empty-state"><strong>Nothing waiting</strong><p>New flagged products will appear here for review.</p></div>}
         {pending!==null&&pending.length>0&&pending.map(p=><div key={p.id} className="stock-row">
           <div><strong>{p.brand?`${p.brand} `:""}{p.name} · {p.size}</strong>
@@ -67,6 +69,7 @@ export default function OperatorPage(){
               <button className="primary" disabled={busy===p.id} onClick={()=>review(p.id,true)}>Approve</button>
               <button className="secondary" disabled={busy===p.id} onClick={()=>review(p.id,false)}>Reject</button>
             </div>
+            {rowNote&&rowNote.id===p.id&&<p className="notice" role="status">{rowNote.text}</p>}
           </div>
         </div>)}
       </div>

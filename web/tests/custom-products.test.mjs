@@ -12,8 +12,12 @@ import { mergeProposals } from "../src/lib/custom-products.ts";
 
 test("custom products validate lengths, units and regulated goods", () => {
   assert.deepEqual(validateCustomProduct({ name: "Zobo", brand: "Kubwa", size: "50cl", unit: "bottle", category: "provisions" }), {
-    name: "Zobo", brand: "Kubwa", size: "50cl", unit: "bottle", category: "provisions",
+    name: "Zobo", brand: "Kubwa", variant: "Standard", size: "50cl", unit: "bottle", category: "provisions",
   });
+  assert.equal(
+    validateCustomProduct({ name: "Zobo", brand: "Kubwa", size: "50cl", unit: "bottle", category: "provisions", variant: "Spicy" }).variant,
+    "Spicy",
+  );
   assert.equal(CUSTOM_PRODUCT_LIMIT_PER_DAY, 10);
   assert.equal(
     validateCustomProduct({ name: "Zobo", brand: "", size: "50cl", unit: "bottle", category: "provisions" }).brand,
@@ -23,6 +27,7 @@ test("custom products validate lengths, units and regulated goods", () => {
     [{ name: "x", brand: "", size: "1", unit: "piece", category: "provisions" }, /INVALID_PRODUCT_NAME/],
     [{ name: "ok name", brand: "", size: "1", unit: "sachet", category: "provisions" }, /INVALID_PRODUCT_UNIT/],
     [{ name: "ok name", brand: "", size: "", unit: "piece", category: "provisions" }, /INVALID_PRODUCT_SIZE/],
+    [{ name: "ok name", brand: "", size: "1", unit: "piece", category: "provisions", variant: "x".repeat(41) }, /INVALID_PRODUCT_VARIANT/],
     [{ name: "Paracetamol", brand: "", size: "20", unit: "pack", category: "provisions" }, /REGULATED_PRODUCT/],
     [{ name: "Cough relief", brand: "", size: "100ml", unit: "bottle", category: "medicines" }, /REGULATED_PRODUCT/],
     [{ name: "Malaria drugs", brand: "", size: "20", unit: "pack", category: "provisions" }, /REGULATED_PRODUCT/],

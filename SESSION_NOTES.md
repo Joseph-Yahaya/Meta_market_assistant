@@ -181,3 +181,19 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
 - Gates: npm test 71/71, npm run lint 0 errors, npm run build green.
   Owner must restart the dev server once so 007 applies, then run the
   browser checklist from the handoff message.
+
+## 8 November 2026 - Trader usability fixes (messages, resets, proposal polish)
+
+- Entry messages moved into the record panel; add-by-photo has its own
+  message zone under each action button. Live regions scroll into view;
+  errors persist until the next action. Buyer feedback and owner review
+  errors now show inline at the row.
+- Rejected photos cannot be re-read without a new photo or Cancel.
+- Confirm now clears text, filter, quantity (1), price, expiry, action
+  buttons and stale AI/batch state. Saving a new product switches to
+  Restock, selects it, clears the filter, closes the panel and releases
+  photo previews.
+- New proposal-polish lib: category mapping, brand/variant split, metric
+  sizes, singular/plural units. Variant stored (no migration needed).
+- Gates: npm test 76/76, lint 0 errors, build green. No restart needed
+  (no migration, no env change); dev server hot-reloads.

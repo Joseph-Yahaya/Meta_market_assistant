@@ -22,21 +22,23 @@ export function isRegulatedProduct(input: { name: string; brand: string; categor
   return REGULATED_WORDS.some((word) => words.has(word));
 }
 
-export type CustomProductInput = { name: string; brand: string; size: string; unit: string; category: string };
-export type CustomProduct = { name: string; brand: string; size: string; unit: "piece" | "pack" | "carton" | "bottle"; category: string };
+export type CustomProductInput = { name: string; brand: string; size: string; unit: string; category: string; variant?: string };
+export type CustomProduct = { name: string; brand: string; variant: string; size: string; unit: "piece" | "pack" | "carton" | "bottle"; category: string };
 // Length, unit and regulated-goods rules. Throws a stable error code.
 export function validateCustomProduct(input: CustomProductInput): CustomProduct {
   const name = input.name.trim(), brand = input.brand.trim(), size = input.size.trim(), category = normalizeProductText(input.category);
+  const variant = (input.variant ?? "").trim();
   if (name.length < 2 || name.length > 80) throw new Error("INVALID_PRODUCT_NAME");
   if (brand.length > 80) throw new Error("INVALID_PRODUCT_BRAND");
+  if (variant.length > 40) throw new Error("INVALID_PRODUCT_VARIANT");
   if (size.length < 1 || size.length > 40) throw new Error("INVALID_PRODUCT_SIZE");
   if (!["piece", "pack", "carton", "bottle"].includes(input.unit)) throw new Error("INVALID_PRODUCT_UNIT");
   if (category.length < 1 || category.length > 40) throw new Error("INVALID_PRODUCT_CATEGORY");
   if (isRegulatedProduct({ name, brand, category })) throw new Error("REGULATED_PRODUCT");
-  return { name, brand: brand || "Unbranded", size, unit: input.unit as CustomProduct["unit"], category };
+  return { name, brand: brand || "Unbranded", variant: variant || "Standard", size, unit: input.unit as CustomProduct["unit"], category };
 }
 
-export type CatalogRow = { name: string; brand: string; size: string };
+export type CatalogRow = { name: string; brand: string; size: string; variant?: string };
 function tokenSet(value: string): Set<string> {
   return new Set(normalizeProductText(value).split(" ").filter(Boolean));
 }
@@ -53,12 +55,12 @@ export function checkCustomFlags(
   product: CustomProduct,
   catalog: CatalogRow[],
 ): { duplicate: boolean; flags: string[] } {
-  const key = `${normalizeProductText(product.name)}|${normalizeProductText(product.brand)}|${normalizeProductText(product.size)}`;
+  const key = `${normalizeProductText(product.name)}|${normalizeProductText(product.brand)}|${normalizeProductText(product.variant ?? "standard")}|${normalizeProductText(product.size)}`;
   const flags: string[] = [];
   let duplicate = false;
   let best = 0;
   for (const row of catalog) {
-    const rowKey = `${normalizeProductText(row.name)}|${normalizeProductText(row.brand)}|${normalizeProductText(row.size)}`;
+    const rowKey = `${normalizeProductText(row.name)}|${normalizeProductText(row.brand)}|${normalizeProductText(row.variant ?? "standard")}|${normalizeProductText(row.size)}`;
     if (rowKey === key) {
       duplicate = true;
       break;
