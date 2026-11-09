@@ -112,6 +112,14 @@ export function stripImageMetadata(bytes: Uint8Array, type: SniffedImage): Uint8
   throw new Error("IMAGE_UNREADABLE");
 }
 
+// Short signature of photo bytes so a rejected photo cannot be re-sent
+// unchanged: the trader and buyer flows share this guard to save credits.
+export function photoSignature(bytes: Uint8Array): string {
+  return `${bytes.length}:${Array.from(bytes.slice(0, 8)).join(",")}`;
+}
+export function isRepeatRejection(signature: string, rejected: string | null): boolean {
+  return rejected !== null && signature === rejected;
+}
 export function validateImageBytes(bytes: Uint8Array): { type: SniffedImage } {
   if (bytes.length > MAX_IMAGE_BYTES) throw new Error("IMAGE_TOO_LARGE");
   const type = sniffImageType(bytes);

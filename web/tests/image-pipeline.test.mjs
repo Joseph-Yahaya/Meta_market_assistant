@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sniffImageType, hasExifData, stripImageMetadata, validateImageBytes, MAX_IMAGE_BYTES } from "../src/lib/image.ts";
+import { sniffImageType, hasExifData, stripImageMetadata, validateImageBytes, MAX_IMAGE_BYTES, photoSignature, isRepeatRejection } from "../src/lib/image.ts";
 import { createMetaClient, validateImageProposal } from "../src/lib/meta-client.ts";
 import { dailyCapFor, DAILY_CAP_DEFAULTS } from "../src/lib/model-limits.ts";
 
@@ -100,6 +100,43 @@ test("the vision call sends image bytes with a data-not-instructions directive",
   await assert.rejects(broken.analyzeImage(Uint8Array.from([1]), "image/jpeg"), /INVALID_MODEL_RESPONSE/);
   const failed = createMetaClient({ key: "test-only" }, async () => Response.json({ status: "failed", output_text: "{}" }));
   await assert.rejects(failed.analyzeImage(Uint8Array.from([1]), "image/jpeg"), /INVALID_MODEL_RESPONSE/);
+});
+
+test("loose market goods are products: named, unbranded, unsized, unit open", async () => {
+  const loose = { isProduct: true, name: "Garri", brand: null, size: null, unit: null, category: "provisions", notes: "White heap" };
+  const client = createMetaClient({ key: "test-only" }, async (url, options) => {
+    const instruction = JSON.parse(options.body).input[0].content[0].text;
+    assert.ok(instruction.includes("loose, bulk or measured"));
+    assert.ok(instruction.includes("garri"));
+    return Response.json({ status: "completed", output_text: JSON.stringify(loose) });
+  });
+  assert.deepEqual(await client.analyzeImage(Uint8Array.from([1, 2, 3]), "image/jpeg"), loose);
+});
+
+test("people and screenshots are rejected as non-products", async () => {
+  const rejected = { isProduct: false, name: null, brand: null, size: null, unit: null, category: null, notes: null };
+  const seen = [];
+  const client = createMetaClient({ key: "test-only" }, async (url, options) => {
+    seen.push(JSON.parse(options.body).input[0].content[0].text);
+    return Response.json({ status: "completed", output_text: JSON.stringify(rejected) });
+  });
+  assert.equal((await client.analyzeImage(Uint8Array.from([4, 5, 6]), "image/jpeg")).isProduct, false);
+  assert.equal((await client.analyzeImage(Uint8Array.from([7, 8, 9]), "image/jpeg")).isProduct, false);
+  for (const instruction of seen) {
+    assert.ok(instruction.includes("people or faces"));
+    assert.ok(instruction.includes("screenshots"));
+  }
+});
+
+test("a repeat of a rejected photo is blocked without a new call", () => {
+  const first = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const same = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const other = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 9, 9]);
+  assert.equal(photoSignature(first), photoSignature(same));
+  assert.notEqual(photoSignature(first), photoSignature(other));
+  assert.equal(isRepeatRejection(photoSignature(same), photoSignature(first)), true);
+  assert.equal(isRepeatRejection(photoSignature(other), photoSignature(first)), false);
+  assert.equal(isRepeatRejection(photoSignature(first), null), false);
 });
 
 test("image calls have their own daily cap plus the global ceiling", () => {

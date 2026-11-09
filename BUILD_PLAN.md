@@ -202,6 +202,7 @@ These were discussed and **deliberately left out of the current build**. Do not 
 | Cost and profit tracking | Purchase cost per item so the ledger can show profit | Schema holds no cost data; recorded revenue is not profit | Owner decides to add cost entry; traders willing to log it |
 | Self-hosted open-weight models | Run Meta open-weight models to lower per-call cost | Only worth it at volume | Usage and cost data show it is needed |
 | Nigerian-language voice at scale | Dependable Yoruba, Igbo and Hausa voice | Provider support unverified | Feature E measured results meet the owner's threshold |
+| Units for loose goods (cup/derica, bag, kg, bunch, basket) | Selling units for loose, bulk and measured market goods | Stock is counted in whole units today (piece, pack, carton, bottle); loose goods may need weighing or measure conversions | A design decision on measuring and counting loose stock before the pilot |
 
 Also keep in mind: the original problem statement (price imbalance and exploitation) is a long-term goal. The product starts with traders being found by customers, because that is what traders asked for.
 

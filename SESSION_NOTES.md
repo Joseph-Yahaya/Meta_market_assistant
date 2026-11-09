@@ -294,3 +294,22 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   24h to allow joining, never shown; (4) single spaces allowed in ideas.
 - Gates: npm test 101/101, lint 0 errors, build green. Owner restarts
   once for 008. No live AI calls made.
+
+## 9 November 2026 - Photo product check widened to loose goods
+
+- Shared image prompt now accepts packaged goods plus loose, bulk and
+  measured market goods (garri, rice, beans, flour, spices, vegetables,
+  fruit, oils/liquids in containers, bagged items). People/faces,
+  documents, screenshots, text-only images, scenery, vehicles,
+  buildings and inappropriate content still rejected. Medicines stay
+  refused by the existing code rules. Same prompt serves trader
+  add-by-photo and buyer demand photos.
+- Loose goods propose name only (brand/size/unit null); trader picks
+  the unit, size defaults to Standard. New rejection message guides a
+  clearer retake. Buyer card disables Confirm after a rejection until a
+  different photo is taken (shared signature guard, tested).
+- Parked in BUILD_PLAN.md: units for loose goods (cup/derica, bag, kg,
+  bunch, basket); stock counts whole units today, design decision
+  needed before the pilot.
+- Gates: npm test 104/104, lint 0 errors, build green. No restart
+  needed. No live AI calls made.

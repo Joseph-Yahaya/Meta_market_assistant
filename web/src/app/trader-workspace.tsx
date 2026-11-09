@@ -5,6 +5,7 @@ import StockInsights from "./stock-insights";
 import { pcmToWav, normaliseVolume, trimSilence } from "@/lib/audio";
 import { cleanEntryText, likelyAction } from "@/lib/entry-text";
 import { prepareProductPhoto } from "@/lib/image-prep";
+import { isRepeatRejection, photoSignature } from "@/lib/image";
 import { validateCustomProduct, findClosestProducts, isRegulatedProduct, mergeProposals } from "@/lib/custom-products";
 import { polishProposal, pluralizeUnit } from "@/lib/proposal-polish";
 import { shouldHideAfterBlur } from "@/lib/password-field";
@@ -41,7 +42,7 @@ const messages:Record<string,string>={
   INSUFFICIENT_STOCK_RECOUNT_REQUIRED:"That sale exceeds available stock. Check the quantity or recount the batch first.",
   CONFIRMATION_EXPIRED:"This review expired. Review the details again before saving.",STOCK_CHANGED_REVIEW_AGAIN:"The batch changed while you were reviewing it. Refresh stock and recount again.",
   INVALID_CONFIRMATION:"This review is no longer valid. Please create a new review.",TOO_MANY_ATTEMPTS:"Too many attempts. Please wait 15 minutes before trying again.",DAILY_LIMIT_REACHED:"Daily AI limit reached. Continue with the manual form below; limits reset tomorrow.",
-  PRODUCT_UNAVAILABLE:"This product is no longer available. Pick another product.",REGULATED_PRODUCT:"Medicines and regulated goods cannot be added here.",DUPLICATE_PRODUCT:"This product is already in the list. Please use the existing one.",PRODUCT_DAILY_LIMIT:"You have added 10 new products today. Please try again tomorrow.",INVALID_PRODUCT_NAME:"Give the product a name between 2 and 80 characters.",INVALID_PRODUCT_BRAND:"Keep the brand within 80 characters.",INVALID_PRODUCT_VARIANT:"Keep the variant within 40 characters.",INVALID_PRODUCT_SIZE:"Give the size within 40 characters, for example 70g.",INVALID_PRODUCT_UNIT:"Choose piece, pack, carton or bottle.",INVALID_PRODUCT_CATEGORY:"Choose a valid product category.",PHOTO_REQUIRED:"A photo is required to add a product.",IMAGE_TYPE_UNSUPPORTED:"Please choose a JPEG, PNG or WebP photo.",IMAGE_TOO_LARGE:"That photo is too large. Try a smaller one.",IMAGE_UNREADABLE:"That photo could not be read. Try another one.",IMAGE_METADATA_PRESENT:"That photo still has hidden location data. Please retake it in the app.",NOT_A_PRODUCT:"That photo does not show a product. Please retake it.",
+  PRODUCT_UNAVAILABLE:"This product is no longer available. Pick another product.",REGULATED_PRODUCT:"Medicines and regulated goods cannot be added here.",DUPLICATE_PRODUCT:"This product is already in the list. Please use the existing one.",PRODUCT_DAILY_LIMIT:"You have added 10 new products today. Please try again tomorrow.",INVALID_PRODUCT_NAME:"Give the product a name between 2 and 80 characters.",INVALID_PRODUCT_BRAND:"Keep the brand within 80 characters.",INVALID_PRODUCT_VARIANT:"Keep the variant within 40 characters.",INVALID_PRODUCT_SIZE:"Give the size within 40 characters, for example 70g.",INVALID_PRODUCT_UNIT:"Choose piece, pack, carton or bottle.",INVALID_PRODUCT_CATEGORY:"Choose a valid product category.",PHOTO_REQUIRED:"A photo is required to add a product.",IMAGE_TYPE_UNSUPPORTED:"Please choose a JPEG, PNG or WebP photo.",IMAGE_TOO_LARGE:"That photo is too large. Try a smaller one.",IMAGE_UNREADABLE:"That photo could not be read. Try another one.",IMAGE_METADATA_PRESENT:"That photo still has hidden location data. Please retake it in the app.",NOT_A_PRODUCT:"This doesn't look like something sold in a shop or market. Try a clear photo with the item filling the frame.",
   UNDO_EXPIRED:"That entry is older than a minute and can no longer be undone. Correct it with a recount.",UNDO_BLOCKED:"This entry cannot be undone because stock changed afterwards. Correct it with a recount.",AUDIO_UNREADABLE:"This audio file could not be decoded in your browser. Try a WAV or MP3 file instead.",OPENING_EXISTS:"Opening stock already exists for this product. Use restock or recount instead.",INVALID_DATE:"Enter a valid date.",
   INVALID_BATCH:"Choose the correct batch for this product.",AUDIO_LIMIT_30_SECONDS:"Keep recordings to 30 seconds or less.",INVALID_WAV:"The recording could not be read. Try another recording or type instead.",
 };
@@ -210,8 +211,8 @@ export default function TraderWorkspace() {
   }
   async function analyzePhotos(){
     if(!addPhoto||addPhoto.stage!=="preview")return;
-    const sig=`${addPhoto.photo.bytes.length}:${Array.from(addPhoto.photo.bytes.slice(0,8)).join(",")}`;
-    if(rejectedPhoto.current===sig){setPhotoNotice("That photo was already rejected. Take a different photo or tap Cancel.");return;}
+    const sig=photoSignature(addPhoto.photo.bytes);
+    if(isRepeatRejection(sig,rejectedPhoto.current)){setPhotoNotice("That photo was already rejected. Take a different photo or tap Cancel.");return;}
     setBusy("photo");setPhotoNotice("");
     try {
       const first=await postPhoto("/api/images/analyze",addPhoto.photo.bytes,"image/jpeg");
