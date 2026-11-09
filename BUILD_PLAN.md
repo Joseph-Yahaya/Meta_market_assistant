@@ -163,6 +163,8 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
   8. The optional buyer photo prompt after a failed search uses the Feature Q pipeline, with consent text, three photos per visitor per day at most, a stored photo only if it joins an alert and for at most 7 days (owner to confirm), one cropped representative photo shown to traders only after the threshold, and deletion when the alert expires.
   9. Traders have an on/off setting for these alerts, saved per shop.
   10. Tests cover the threshold boundary, distinct counting, cell rounding with no coordinates stored, key validation, opt-out, photo expiry and simulated labels, plus a beginner browser checklist.
+  11. Any demand idea that matches the regulated-goods rules (medicines, drugs and similar) is never counted, never shown to traders and never used for alerts, even if the AI suggests it.
+  12. The 2 km square, 5 km range, 5-visitor threshold and 7-day photo limit are settings in one place, with these values confirmed by the owner on 9 November 2026.
 
 ### Feature Q: shared image pipeline
 - One pipeline built before the photo parts of N, H and P: type and size validation, metadata stripping, resizing, safety check, AI call, storage decision. Storage rule (owner decision, 7 November 2026): store cropped trader product photos; buyer photos only if included in an alert and only briefly.
