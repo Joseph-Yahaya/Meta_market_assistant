@@ -22,6 +22,24 @@ export function isRegulatedProduct(input: { name: string; brand: string; categor
   return REGULATED_WORDS.some((word) => words.has(word));
 }
 
+const OFFENSIVE_WORDS = [
+  "fuck", "shit", "bitch", "asshole", "bastard", "dick",
+  "pussy", "whore", "slut", "cunt",
+];
+
+// Demand keys for AI ideas (Feature P). Normalized to lowercase so the same
+// idea counts together. Letters, numbers and single spaces only, 40 chars
+// at most; phone-number-like and offensive text refused; regulated ideas
+// reuse the product rules so medicines and drugs are never counted.
+export function validateDemandIdea(raw: string): string {
+  const idea = raw.toLowerCase().trim().replace(/\s+/g, " ");
+  if (!/^[a-z0-9 ]{1,40}$/.test(idea)) throw new Error("INVALID_DEMAND_IDEA");
+  if (idea.replace(/\D/g, "").length >= 7) throw new Error("INVALID_DEMAND_IDEA");
+  if (idea.split(" ").some((word) => OFFENSIVE_WORDS.includes(word))) throw new Error("INVALID_DEMAND_IDEA");
+  if (isRegulatedProduct({ name: idea, brand: "", category: "" })) throw new Error("REGULATED_PRODUCT");
+  return idea;
+}
+
 export type CustomProductInput = { name: string; brand: string; size: string; unit: string; category: string; variant?: string };
 export type CustomProduct = { name: string; brand: string; variant: string; size: string; unit: "piece" | "pack" | "carton" | "bottle"; category: string };
 // Length, unit and regulated-goods rules. Throws a stable error code.

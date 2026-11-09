@@ -5,6 +5,8 @@ import { database } from "@/server/db";
 import { ApiError, bodyObject, failure, json, requireSameOrigin } from "@/server/http";
 import { planSearch, requireAiConsent, validateAiChoice, validateAiQuery } from "@/lib/buyer-ai";
 import { catalogWords, matchCatalogProducts } from "@/lib/catalog-match";
+import { signBuyer } from "@/lib/buyer";
+import { validateDemandIdea } from "@/lib/custom-products";
 export const runtime = "nodejs";
 // Local matching runs first; the AI only sees no-match and ambiguous
 // queries from buyers who consented. The raw query is never stored or
@@ -12,7 +14,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     requireSameOrigin(request);
-    const { visitor } = await buyerIdentity();
+    const { secret, visitor } = await buyerIdentity();
     const body = await bodyObject(request);
     let query: string;
     try {
@@ -49,10 +51,18 @@ export async function POST(request: Request) {
     try {
       validated = validateAiChoice(choice, plan.candidates.map((row) => row.id));
     } catch (error) { throw new ApiError(502, (error as Error).message); }
+    let ideaToken: string | null = null;
+    if (validated.notInCatalog && validated.idea) {
+      try {
+        const normalized = validateDemandIdea(validated.idea);
+        ideaToken = signBuyer("buyer-idea", { visitor, idea: normalized, expires: Date.now() + 24 * 3600000 }, secret);
+      } catch { ideaToken = null; }
+    }
     return json({
       source: "ai",
       products: catalog.filter((row: { id: string }) => validated.productIds.includes(row.id)),
       notInCatalog: validated.notInCatalog ? { idea: validated.idea } : null,
+      ideaToken,
     });
   } catch (error) { return failure(error); }
 }

@@ -266,3 +266,31 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   feature" label, optional Q-pipeline photo with consent and 7-day expiry
   (owner to confirm), per-shop on/off setting, tests plus checklist.
 - Nothing built. Awaiting owner go-ahead.
+
+## 9 November 2026 - Feature P built (unmet-demand alerts)
+
+- Settings in web/src/lib/demand.ts (2 km cells, 5 km range as 9 cells,
+  threshold 5, 7-day photos, 3 photos/visitor/day). Migration 008 adds
+  demand_signals, demand_daily, demand_photos and shops.demand_alerts
+  (default off). Additive; demo data untouched. Applies on restart.
+- Counting is server-only: empty searches at 20 km count the product
+  automatically; AI not-in-catalog ideas count only via a signed idea
+  token. Ideas: lowercase, letters/numbers/spaces, 40 chars, no
+  phone-like or offensive text, regulated refused. One count per
+  visitor/key/cell/day (primary key). No coordinates or query text
+  stored; 24h records purge lazily like the others.
+- Alerts: opted-in shops, same/adjacent cells, unstocked products only,
+  groups of 5+/24h only (SQL-enforced), one alert per key per day,
+  "Preview of a paid feature" + "Simulated" labels, dashboard only.
+- Simulated seed at boot (demo mode, idempotent): 8-visitor product
+  with no stock in its cell, 6-visitor "toothpaste" idea, hidden
+  3-group, one adjacent shop stocking the product (excluded).
+- Buyer photo: consent text, browser resize + confirmed square crop,
+  3/day + global image cap, Q checks, pending until threshold, one
+  representative photo, 7-day max, lazy expiry, operator removal page.
+- Readings disclosed to owner: (1) the demand cell holds no stock while
+  the adjacent in-range shop stocks it; (2) 24h distinct-records follow
+  the existing pattern with cell added; (3) pending photos held up to
+  24h to allow joining, never shown; (4) single spaces allowed in ideas.
+- Gates: npm test 101/101, lint 0 errors, build green. Owner restarts
+  once for 008. No live AI calls made.

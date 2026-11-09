@@ -28,7 +28,7 @@ const command=async(action,quantity,key="request-0001",extras={})=>(await db.que
 const day=(days)=>new Date(new Date(`${date}T12:00:00Z`).getTime()+days*86400000).toISOString().slice(0,10);
 const discover=async()=> (await db.query(DISCOVERY_SQL,[product,9.151,7.324,5,0,longitudeSpan(9.151,5)])).rows;
 
-test("migrations are repeatable",async()=>{await migrate(db); assert.equal((await db.query("SELECT count(*)::int n FROM schema_migrations")).rows[0].n,7);});
+test("migrations are repeatable",async()=>{await migrate(db); assert.equal((await db.query("SELECT count(*)::int n FROM schema_migrations")).rows[0].n,8);});
 test("sale, recount and immutable correction history",async()=>{
   const opening=await command("opening",10);
   assert.equal((await command("sale",3,"request-sale")).estimatedQty,7);

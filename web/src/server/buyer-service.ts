@@ -9,6 +9,9 @@ import { sessionSecret } from "./auth";
 import { database } from "./db";
 import { ApiError } from "./http";
 import { limitAuth } from "./accounts";
+import { demandCellId } from "@/lib/demand";
+import { DEMAND_PURGE_SIGNALS_SQL } from "@/lib/demand-sql";
+import { recordDemandSignal } from "./demand-service";
 const BUYER_COOKIE="market_buyer_demo";
 export async function buyerIdentity() {
   if(process.env.DEMO_MODE!=="true")throw new ApiError(404,"DEMO_DISCOVERY_DISABLED");
@@ -50,7 +53,9 @@ export async function buyerSearch(body:Record<string,unknown>) {
   if(!body.searchToken) {
     await db.query("DELETE FROM searches WHERE simulated AND at<now()-interval '24 hours'");
     await db.query("DELETE FROM feedback WHERE at<now()-interval '24 hours' AND shop_id IN (SELECT id FROM shops WHERE simulated)");
+    await db.query(DEMAND_PURGE_SIGNALS_SQL);
     await db.query("INSERT INTO searches(id,product_id,found_results,simulated,visitor_hash) VALUES($1,$2,$3,true,$4)",[searchId,input.productId,rows.length>0,visitor]);
+    if(searchedRadiusKm>=20&&!rows.length)await recordDemandSignal(db,{kind:"product",key:input.productId,cell:demandCellId(input.latitude,input.longitude),visitor});
   }
   const shops=rows.slice(0,50).map(row=>({...row,feedbackToken:signBuyer("buyer-feedback",{visitor,searchId,shopId:row.shop_id,productId:input.productId,expires:Date.now()+15*60000},secret)}));
   return {simulated:true,availability:"estimated",distanceType:"straight-line",requestedRadiusKm:input.radiusKm,searchedRadiusKm,shops,nextOffset:rows.length>50?input.offset+50:null,searchToken,refreshSeconds:5};

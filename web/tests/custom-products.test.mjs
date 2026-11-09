@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateCustomProduct,
+  validateDemandIdea,
   checkCustomFlags,
   findClosestProducts,
   CUSTOM_PRODUCT_LIMIT_PER_DAY,
@@ -38,6 +39,18 @@ test("custom products validate lengths, units and regulated goods", () => {
   );
 });
 
+test("demand ideas validate tightly and refuse regulated goods", () => {
+  assert.equal(validateDemandIdea("  Toothpaste   Red "), "toothpaste red");
+  assert.equal(validateDemandIdea("Garri White 1kg"), "garri white 1kg");
+  assert.equal(validateDemandIdea("vitamin b12"), "vitamin b12");
+  assert.equal(validateDemandIdea("shitake mushrooms"), "shitake mushrooms");
+  for (const bad of ["", "x".repeat(41), "milk!", "a-b", "09012345678", "call 0801 234 5678", "a shit list"]) {
+    assert.throws(() => validateDemandIdea(bad), /INVALID_DEMAND_IDEA/);
+  }
+  for (const regulated of ["paracetamol tablets", "cough drugs", "medicines"]) {
+    assert.throws(() => validateDemandIdea(regulated), /REGULATED_PRODUCT/);
+  }
+});
 test("duplicates refuse and near matches flag for review", () => {
   const catalog = [
     { name: "Noodles", brand: "Indomie", size: "70g" },

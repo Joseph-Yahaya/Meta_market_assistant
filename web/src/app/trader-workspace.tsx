@@ -17,6 +17,7 @@ import type { StockEntry } from "@/lib/entries";
 import type { ExtractedEntry } from "@/lib/meta-client";
 
 type Product={id:string;name:string;brand:string;variant:string;size:string;unit:string;perishable:boolean;status:string};
+type DemandAlert={kind:string;key:string;label:string;visitors:number;simulated:boolean;photoId:string|null};
 type PhotoData={bytes:Uint8Array<ArrayBuffer>;url:string};
 type NewProductFlow=null|{stage:"capture";hint:string}
   |{stage:"preview";hint:string;photo:PhotoData;back:PhotoData|null}
@@ -58,7 +59,7 @@ const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"me
 export default function TraderWorkspace() {
   const [status,setStatus]=useState<{accountsConfigured:boolean;metaConfigured:boolean;textModel?:string;voiceModel?:string}|null>(null);
   const [authTab,setAuthTab]=useState<"login"|"signup">("login");
-  const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false}),[showPassword,setShowPassword]=useState(false),[capsOn,setCapsOn]=useState(false);
+  const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false}),[showPassword,setShowPassword]=useState(false),[capsOn,setCapsOn]=useState(false),[demands,setDemands]=useState<{enabled:boolean;alerts:DemandAlert[]}|null>(null),[demandBusy,setDemandBusy]=useState(false),[demandError,setDemandError]=useState("");
   const [shops,setShops]=useState<Shop[]>([]),[shopId,setShopId]=useState("");
   const [stock,setStock]=useState<Batch[]>([]),[events,setEvents]=useState<Event[]>([]),[products,setProducts]=useState<Product[]>([]);
   const [refresh,setRefresh]=useState(0),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[receipt,setReceipt]=useState(""),[photoNotice,setPhotoNotice]=useState("");
@@ -101,6 +102,7 @@ export default function TraderWorkspace() {
   },[undo]);
   useEffect(()=>{noticeRef.current?.scrollIntoView({block:"nearest"});},[notice,receipt]);
   useEffect(()=>{photoNoticeRef.current?.scrollIntoView({block:"nearest"});},[photoNotice]);
+  useEffect(()=>{if(!shopId)return;let active=true;api<{enabled:boolean;alerts:DemandAlert[]}>(`/api/shops/${shopId}/demand-alerts`).then(data=>{if(active){setDemands(data);setDemandError("");}}).catch(error=>{if(active)setDemandError(friendly(error));});return()=>{active=false;};},[shopId,refresh]);
   useEffect(()=>{
     const mark=()=>{awaySince.current=Date.now();};
     const back=()=>{if(shouldHideAfterBlur(awaySince.current,Date.now()))setShowPassword(false);awaySince.current=null;};
@@ -256,6 +258,14 @@ export default function TraderWorkspace() {
       setNotice(data.message||"Saved.");
     }catch(error){setPhotoNotice(friendly(error));}finally{setBusy("");}
   }
+  async function toggleDemandAlerts(enabled:boolean){
+    setDemandBusy(true);setDemandError("");
+    try{
+      const data=await api<{enabled:boolean}>(`/api/shops/${shopId}/demand-alerts`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled})});
+      if(data.enabled){const full=await api<{enabled:boolean;alerts:DemandAlert[]}>(`/api/shops/${shopId}/demand-alerts`);setDemands(full);}
+      else setDemands({enabled:false,alerts:[]});
+    }catch(error){setDemandError(friendly(error));}finally{setDemandBusy(false);}
+  }
   async function undoEntry() {
     if(!undo)return;setBusy("undo");setNotice("");
     try {
@@ -324,7 +334,7 @@ export default function TraderWorkspace() {
       {shops.length>1&&<label>Choose your shop<select value={shopId} onChange={e=>{setShopId(e.target.value);setReview(null);setReceipt("");}}>{shops.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
       <div className="stats"><div><span>Products with stock</span><strong>{new Set(stock.filter(b=>b.estimated_qty>0).map(b=>b.product_id)).size}</strong></div><div><span>Batches tracked</span><strong>{stock.length}</strong></div><div><span>Location status</span><strong className="small-stat">{shop.location_verified?"Verified":"Needs verification"}</strong></div></div>
       {/* Entry messages render inside the record panel, next to the actions. */}
-      <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><div className="work-grid"><section className="panel"><div ref={noticeRef}>{notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}{undo&&<div className="inline-actions"><button className="secondary" disabled={Boolean(busy)} onClick={undoEntry}>Undo this entry ({undo.left}s)</button></div>}</div><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
+      <StockInsights key={shopId} shopId={shopId} refresh={refresh}/><section className="panel demand" aria-label="Demand near you"><span className="eyebrow">DEMAND NEAR YOU</span><h2>Demand near you</h2><p className="muted">Preview of a paid feature. When 5 or more nearby people search for something no shop has, it appears here.</p><label className="check"><input type="checkbox" checked={demands?.enabled??false} disabled={demandBusy} onChange={e=>toggleDemandAlerts(e.target.checked)}/><span>Show demand alerts for this shop</span></label>{demandError&&<p className="notice" role="status">{demandError}</p>}{demands?.enabled&&!demands.alerts.length&&!demandError&&<p className="hint">No demand alerts right now. Alerts need at least 5 distinct searchers in 24 hours.</p>}{demands?.enabled&&demands.alerts.map(a=><div key={`${a.kind}:${a.key}`} className="stock-row"><div><strong>{a.visitors} people near you searched for {a.label} and found no shop</strong><p className="hint">Preview of a paid feature{a.simulated?" · Simulated":""}</p>{a.photoId&&<img className="preview" src={`/api/shops/${shopId}/demand-photos/${a.photoId}`} alt="Buyer photo of the requested product" loading="lazy"/>}</div></div>)}</section><div className="work-grid"><section className="panel"><div ref={noticeRef}>{notice&&<p className="notice" role="status">{notice}</p>}{receipt&&<p className="success" role="status">{receipt}</p>}{undo&&<div className="inline-actions"><button className="secondary" disabled={Boolean(busy)} onClick={undoEntry}>Undo this entry ({undo.left}s)</button></div>}</div><span className="eyebrow">RECORD AN UPDATE</span><h2>What changed in your shop?</h2><p className="muted">One product at a time. Every update is reviewed before it is saved.</p>
         <div className="action-first" role="group" aria-label="Choose the action first"><span className="hint">First, what happened?</span><div className="inline-actions">{actionButtons(null)}</div></div><label className="text-entry">Type a sale, restock or recount<textarea maxLength={2000} rows={3} placeholder="Sold 3 packs of Indomie chicken noodles, 70g" value={text} onChange={e=>setText(e.target.value)}/></label>
         <div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||recording||!text.trim()||!status?.metaConfigured} onClick={interpret}>{busy==="interpret"?"Understanding…":"Interpret entry"}</button><span className="hint">{status?.metaConfigured?"Check every suggested field.":"AI is not connected. Use the manual form below."}</span></div>
         <details className="voice"><summary>Use a short voice note</summary><p className="hint">Up to 30 seconds. Audio is sent to Meta for transcription and is not stored by this app. WhatsApp voice notes (.ogg) work: they are decoded and converted in your browser before upload. English/Pidgin accuracy still needs live testing.</p><label className="check"><input type="checkbox" checked={audioConsent} onChange={e=>{setAudioConsent(e.target.checked);if(!e.target.checked&&recording){discardRecording.current=true;recorder.current?.stop();}}}/><span>I agree to send this recording to Meta for transcription.</span></label><div className="inline-actions"><button className="secondary" disabled={Boolean(busy)||!audioConsent||!status?.metaConfigured} onClick={()=>recording?recorder.current?.stop():void startRecording()}>{recording?"Stop recording":"Record voice note"}</button><label className="file-label">Or upload audio<input aria-label="Upload a short audio recording" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/opus,audio/webm,.wav,.mp3,.m4a,.ogg,.opus,.webm" disabled={Boolean(busy)||recording||!audioConsent||!status?.metaConfigured} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendAudio(file);}}/></label></div>{recording&&<><button className="text-button" onClick={()=>{discardRecording.current=true;recorder.current?.stop();}}>Discard recording</button><p role="status">Recording… stops automatically before 30 seconds.</p></>}{busy==="voice"&&<p role="status">Transcribing your recording…</p>}</details>{processed&&<section className="review" aria-label="How this was processed"><h3>How this was processed</h3><p className="hint">Transcript is editable in the text box above. Nothing is saved until you confirm.</p><dl><div><dt>Transcript</dt><dd>{processed.transcript||"Typed entry (no recording)"}</dd></div><div><dt>Parsed</dt><dd>{processed.action||"-"} | {processed.quantity||"-"} {processed.unit||""} | {processed.item||"-"}</dd></div><div><dt>Models</dt><dd>{status?.textModel||"muse-spark-1.3"} (extract) + {status?.voiceModel||"muse-voice-transcribe-1.0"} (transcribe)</dd></div></dl></section>}

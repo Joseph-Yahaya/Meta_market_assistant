@@ -31,3 +31,29 @@ export async function prepareProductPhoto(blob: Blob): Promise<{ bytes: Uint8Arr
     bitmap.close();
   }
 }
+
+// Simple center-square crop for buyer demand photos. The caller shows the
+// preview URL and sends the bytes only after the buyer confirms them.
+export async function squareCropJpeg(bytes: Uint8Array): Promise<{ bytes: Uint8Array<ArrayBuffer>; url: string }> {
+  const copy = new Uint8Array(bytes);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(new Blob([copy], { type: "image/jpeg" }));
+  } catch {
+    throw new Error("IMAGE_UNREADABLE");
+  }
+  try {
+    const side = Math.min(bitmap.width, bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("IMAGE_UNREADABLE");
+    ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, side, side);
+    const out: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!out) throw new Error("IMAGE_UNREADABLE");
+    return { bytes: new Uint8Array(await out.arrayBuffer()), url: URL.createObjectURL(out) };
+  } finally {
+    bitmap.close();
+  }
+}
