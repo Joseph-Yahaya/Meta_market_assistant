@@ -241,3 +241,18 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   never tuned. check-buyer-ai.mjs runs it against the live API and prints
   phrase, products and pass rate; NOT run yet (needs owner go-ahead).
 - Gates: npm test 86/86, lint 0 errors, build green. No restart needed.
+
+## 9 November 2026 - Feature O live accuracy check: 20/20 (100%)
+
+- Ran scripts/check-buyer-ai.mjs once against the local server (owner
+  go-ahead). 9 AI calls used; 11 phrases settled by local matching.
+- Local passes (11): indomie, peak milk, milo, lipton tea, kings oil,
+  quaker oat, cadbury chocolate, sugar dangote, custard vanilla,
+  cheese balls, tuwo (correctly not in catalog, no AI call needed).
+- AI passes (9): "indomie chiken 70g" -> Indomie 70g; "I wan buy garri"
+  -> not in catalog (idea: Garri White 1kg); "gino tomatoes" -> Gino;
+  "mcvities biscuits" -> McVitie's; "nasco cornflakes" -> NASCO;
+  "coke" -> Coca-Cola; "groundnut" -> Demo Snacks Peanuts; "Abeg where
+  I fit see rice?" -> Demo Pantry Rice; "paracetamol" -> not in catalog
+  (idea: Paracetamol Tablets).
+- No failures. Phrases and matching unchanged; nothing tuned.
