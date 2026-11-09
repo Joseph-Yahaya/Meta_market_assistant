@@ -17,7 +17,7 @@ const productName=(p:CatalogProduct)=>`${p.brand} ${p.name} · ${p.variant} · $
 const distanceText=(km:number)=>km<1?`${Math.round(km*1000)} m`:`${km.toFixed(1)} km`;
 const errorText=(error:unknown)=>{
   const code=error instanceof Error?error.message:"";
-  const map:Record<string,string>={DATABASE_UNAVAILABLE:"Search is temporarily unavailable. Please try again shortly.",DEMO_DISCOVERY_DISABLED:"Buyer discovery is not enabled yet.",SESSION_NOT_CONFIGURED:"Buyer search is not connected yet.",INVALID_SEARCH:"That search was not valid. Type a product name and try again.",TOO_MANY_ATTEMPTS:"You have searched or reported too quickly. Please wait before trying again.",DAILY_LIMIT_REACHED:"Daily voice limit reached. Please type your search instead.",SEARCH_EXPIRED:"Your search expired. Please search again.",FEEDBACK_EXPIRED:"This result expired. Refresh the search before sending your report.",INVALID_FEEDBACK:"This report could not be verified. Refresh the search and try again."};
+  const map:Record<string,string>={DATABASE_UNAVAILABLE:"Search is temporarily unavailable. Please try again shortly.",DEMO_DISCOVERY_DISABLED:"Buyer discovery is not enabled yet.",SESSION_NOT_CONFIGURED:"Buyer search is not connected yet.",INVALID_SEARCH:"That search was not valid. Type a product name and try again.",TOO_MANY_ATTEMPTS:"You have searched or reported too quickly. Please wait before trying again.",DAILY_LIMIT_REACHED:"Daily voice limit reached. Please type your search instead.",AI_CONSENT_REQUIRED:"Tick the AI consent box to use AI search, or search without it.",SEARCH_EXPIRED:"Your search expired. Please search again.",FEEDBACK_EXPIRED:"This result expired. Refresh the search before sending your report.",INVALID_FEEDBACK:"This report could not be verified. Refresh the search and try again."};
   return map[code]||"The connection was interrupted. Try again; old availability may have changed.";
 };
 async function jsonRequest<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<T> {
@@ -27,7 +27,7 @@ async function jsonRequest<T>(url:string,body?:unknown,signal?:AbortSignal):Prom
 
 export default function BuyerWorkspace() {
   const [catalog,setCatalog]=useState<CatalogProduct[]>([]),[catalogError,setCatalogError]=useState(""),[catalogRetry,setCatalogRetry]=useState(0);
-  const [query,setQuery]=useState(""),[matched,setMatched]=useState<CatalogProduct[]>([]),[chip,setChip]=useState("all"),[area,setArea]=useState("0");
+  const [query,setQuery]=useState(""),[matched,setMatched]=useState<CatalogProduct[]>([]),[chip,setChip]=useState("all"),[area,setArea]=useState("0"),[aiConsent,setAiConsent]=useState(false),[aiWorking,setAiWorking]=useState(false),[aiHint,setAiHint]=useState("");
   const [latitude,setLatitude]=useState("9.151"),[longitude,setLongitude]=useState("7.324"),[locating,setLocating]=useState(false),[searched,setSearched]=useState<number|null>(null);
   const [active,setActive]=useState<ActiveSearch[]>([]),[rows,setRows]=useState<NearbyShop[]>([]),[loading,setLoading]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[reportError,setReportError]=useState<{key:string;text:string}|null>(null);
   const [lastUpdated,setLastUpdated]=useState<Date|null>(null),[refresh,setRefresh]=useState(0),[hasMore,setHasMore]=useState(false),[paused,setPaused]=useState(false);
@@ -85,7 +85,7 @@ export default function BuyerWorkspace() {
     return()=>{disposed=true;if(timer)clearTimeout(timer);controllers.forEach(c=>c.abort());document.removeEventListener("visibilitychange",resume);window.removeEventListener("online",resume);window.removeEventListener("offline",resume);};
   },[active,refresh]);
 
-  function invalidate(){setActive([]);setRows([]);setMatched([]);setChip("all");setLastUpdated(null);setSelected(null);setError("");setNotice("");setLoading(false);setReported({});setReportError(null);setSearched(null);slicesRef.current={};}
+  function invalidate(){setActive([]);setRows([]);setMatched([]);setChip("all");setLastUpdated(null);setSelected(null);setError("");setNotice("");setLoading(false);setReported({});setReportError(null);setSearched(null);setAiHint("");slicesRef.current={};}
   function runSearch(products:CatalogProduct[]){
     const lat=Number(latitude),lng=Number(longitude);
     if(!latitude.trim()||!longitude.trim()||!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180){setError("Choose a valid search location.");return;}
@@ -93,13 +93,13 @@ export default function BuyerWorkspace() {
     setMatched(products);setChip("all");setRows([]);setSelected(null);setReported({});setError("");setLoading(true);setLastUpdated(null);setSearched(null);slicesRef.current={};
     setActive(products.map(p=>({productId:p.id,latitude:lat,longitude:lng,radiusKm:5,runId})));
   }
-  function search(event:React.FormEvent){
-    event.preventDefault();setNotice("");
+  async function search(event:React.FormEvent){
+    event.preventDefault();setNotice("");setAiHint("");
     if(!query.trim()){setError("Type a product name first.");return;}
-    const found=matchCatalogProducts(query,catalog);
-    if(!found.matched.length){setNotice("Not in our list yet. Try a brand or product name from the suggestions; we will not guess a match.");return;}
-    if(found.truncated)setNotice(`Many variants match. Searching the first ${found.matched.length}; add a size or flavor to narrow it.`);
-    runSearch(found.matched);
+    const found=matchCatalogProducts(query,catalog);if(found.matched.length&&!found.truncated){runSearch(found.matched);return;}
+    if(!aiConsent){if(!found.matched.length){setNotice("Not in our list yet. Try a brand or product name from the suggestions; we will not guess a match.");return;}setNotice(`Many variants match. Searching the first ${found.matched.length}; add a size or flavor to narrow it.`);runSearch(found.matched);return;}setAiWorking(true);
+    try{const data:{source:string;products:CatalogProduct[];notInCatalog:{idea:string|null}|null;capped?:boolean;unavailable?:boolean}=await jsonRequest("/api/buyer/interpret",{query:query.trim(),consent:true});if(data.source==="ai")setAiHint("AI helped understand this search.");else if(data.capped)setAiHint("Daily AI limit reached. Showing local results instead.");else if(data.unavailable)setAiHint("AI is unavailable. Showing local results instead.");
+    if(data.notInCatalog&&!data.products.length){setNotice(data.notInCatalog.idea?`Not in our list yet. Understood as "${data.notInCatalog.idea}" — try a brand or product name from the suggestions.`:"Not in our list yet. Try a brand or product name from the suggestions; we will not guess a match.");}else if(!data.products.length){setNotice("Not in our list yet. Try a brand or product name from the suggestions; we will not guess a match.");}else{if((data.capped||data.unavailable)&&found.truncated)setNotice(`Many variants match. Searching the first ${data.products.length}; add a size or flavor to narrow it.`);runSearch(data.products);}}catch{if(!found.matched.length)setNotice("Not in our list yet. Try a brand or product name from the suggestions; we will not guess a match.");else{setNotice("AI is unavailable. Showing local results instead.");runSearch(found.matched);}}finally{setAiWorking(false);}
   }
   function chooseProduct(value:CatalogProduct){setNotice("");setQuery(productName(value));runSearch([value]);}
   const pinChanged=useCallback((lat:number,lng:number)=>{invalidate();setLatitude(String(lat));setLongitude(String(lng));setArea("custom");setNotice("Search pin updated. Select Find nearby shops to search this area.");},[]);
@@ -127,11 +127,12 @@ export default function BuyerWorkspace() {
         {Boolean(active.length)&&<div className="chosen-product"><span>{matched.length===1?`✓ Exact item: ${variantLabel(matched[0].id)}`:`✓ ${matched.length} matching variants`}</span><button className="text-button" type="button" onClick={()=>{invalidate();}}>New search</button></div>}
         {catalogError&&<p className="notice" role="status">{catalogError} <button className="text-button" type="button" onClick={()=>setCatalogRetry(value=>value+1)}>Retry catalog</button></p>}
         <VoiceQuery enabled={metaEnabled} onTranscript={value=>{invalidate();setQuery(value);setNotice("Review the transcript, then select Find nearby shops. Search has not been submitted.");}}/>
+        <label className="check"><input type="checkbox" checked={aiConsent} onChange={e=>setAiConsent(e.target.checked)}/><span>Let Meta’s AI understand my words when local matching fails.</span></label><p className="hint">If ticked, your words are sent to Meta’s AI only to understand them. Search works without it.</p>
       </div><div className="buyer-location"><label>Search around<select value={area} onChange={e=>{invalidate();setArea(e.target.value);if(e.target.value!=="custom"){const point=areas[Number(e.target.value)];setLatitude(String(point.latitude));setLongitude(String(point.longitude));}}}>{areas.map((point,index)=><option key={point.name} value={index}>{point.name}</option>)}<option value="custom">Custom pin</option></select></label>
         {area==="custom"&&<p className="hint">Custom pin from your device or the map. Drag the map pin or use your device location to move it.</p>}
-        <div className="inline-actions"><button type="button" className="secondary" disabled={locating} onClick={useMyLocation}>{locating?"Reading your location…":"Use my location"}</button><button className="primary" disabled={!query.trim()||loading}>{loading?"Finding nearby stock…":"Find nearby shops"}</button></div><p className="hint">Choose a demo area, use your device location, or drag the map pin. Your coordinates are used for this search and are not saved in search records.</p>
+        <div className="inline-actions"><button type="button" className="secondary" disabled={locating} onClick={useMyLocation}>{locating?"Reading your location…":"Use my location"}</button><button className="primary" disabled={!query.trim()||loading||aiWorking}>{loading?"Finding nearby stock…":aiWorking?"Asking AI…":"Find nearby shops"}</button></div><p className="hint">Choose a demo area, use your device location, or drag the map pin. Your coordinates are used for this search and are not saved in search records.</p>
       </div></form>
-      {(error||notice)&&<p className={error?"notice":"buyer-note"} role="status" ref={messageRef}>{error||notice}</p>}
+      {(error||notice)&&<p className={error?"notice":"buyer-note"} role="status" ref={messageRef}>{error||notice}</p>}{aiHint&&<p className="hint" role="status">{aiHint}</p>}
       <div className="buyer-results-heading"><div><span className="eyebrow">NEARBY SHOPS</span><h2>{active.length?loading?"Checking availability…":`${visibleGroups.length}${hasMore?"+":""} shops with estimated stock`:"Type a product to start"}</h2><p className="hint">{active.length?`Within ${searched??5} km · nearest first · straight-line distance, not walking distance`:"Shop pins and stock are simulated. Availability is always an estimate."}</p></div>{Boolean(active.length)&&<button className="secondary" onClick={()=>{setLoading(true);setRefresh(value=>value+1);}} disabled={loading}>Refresh results</button>}</div>
       {Boolean(active.length)&&searched!==null&&widenMessage(5,searched)&&<p className="buyer-note" role="status">{widenMessage(5,searched)}</p>}
       {matched.length>1&&<div className="variant-chips" role="group" aria-label="Narrow to one variant"><button type="button" className={chip==="all"?"chip active":"chip"} onClick={()=>setChip("all")}>All variants</button>{matched.map(p=><button key={p.id} type="button" className={chip===p.id?"chip active":"chip"} onClick={()=>setChip(p.id)}>{p.variant} · {p.size}</button>)}</div>}

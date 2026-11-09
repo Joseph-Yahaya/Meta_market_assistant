@@ -6,6 +6,7 @@ test("daily caps default and honor valid env overrides", () => {
   assert.equal(dailyCapFor("interpret", {}), DAILY_CAP_DEFAULTS.interpret);
   assert.equal(dailyCapFor("transcribe", {}), DAILY_CAP_DEFAULTS.transcribe);
   assert.equal(dailyCapFor("buyer-voice", {}), DAILY_CAP_DEFAULTS["buyer-voice"]);
+  assert.equal(dailyCapFor("buyer-ai", {}), DAILY_CAP_DEFAULTS["buyer-ai"]);
   assert.equal(dailyCapFor("image", {}), DAILY_CAP_DEFAULTS.image);
   assert.equal(dailyCapFor("global", {}), DAILY_CAP_DEFAULTS.global);
   assert.equal(dailyCapFor("interpret", { MODEL_DAILY_CAP_INTERPRET: "5" }), 5);

@@ -224,3 +224,20 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   no raw query storage, unchanged ranking/widening/tokens/polling,
   voice on the same path, tests plus beginner checklist.
 - Nothing built. Awaiting owner go-ahead.
+
+## 9 November 2026 - Feature O built (AI-assisted buyer search)
+
+- Local matching first; AI fallback only for no-match/ambiguous queries
+  via POST /api/buyer/interpret (query max 120 chars as data + up to 12
+  catalog candidates). Returned IDs validated against the catalog;
+  invented IDs dropped; "not in catalog" carries a short idea or null.
+- Buyer consent checkbox (default off) with a notice near the search box;
+  local matching is the fallback for declined/unavailable/capped.
+- Caps: 30 AI searches/visitor/day (MODEL_DAILY_CAP_BUYER_AI) plus the
+  global cap and a 30/15min rate limit. No raw query text stored/logged.
+- Voice uses the same path after transcription with buyer confirmation
+  (no voice-code change needed). Ranking/widening/tokens/polling untouched.
+- 20-phrase set (English, misspellings, Pidgin, local names) written once,
+  never tuned. check-buyer-ai.mjs runs it against the live API and prints
+  phrase, products and pass rate; NOT run yet (needs owner go-ahead).
+- Gates: npm test 86/86, lint 0 errors, build green. No restart needed.
