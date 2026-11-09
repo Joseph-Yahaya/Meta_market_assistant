@@ -7,6 +7,7 @@ import { cleanEntryText, likelyAction } from "@/lib/entry-text";
 import { prepareProductPhoto } from "@/lib/image-prep";
 import { validateCustomProduct, findClosestProducts, isRegulatedProduct, mergeProposals } from "@/lib/custom-products";
 import { polishProposal, pluralizeUnit } from "@/lib/proposal-polish";
+import { shouldHideAfterBlur } from "@/lib/password-field";
 import type { PolishedProposal } from "@/lib/proposal-polish";
 import { catalogWords } from "@/lib/catalog-match";
 import type { ImageProposal } from "@/lib/meta-client";
@@ -57,7 +58,7 @@ const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"me
 export default function TraderWorkspace() {
   const [status,setStatus]=useState<{accountsConfigured:boolean;metaConfigured:boolean;textModel?:string;voiceModel?:string}|null>(null);
   const [authTab,setAuthTab]=useState<"login"|"signup">("login");
-  const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false});
+  const [account,setAccount]=useState({email:"",password:"",ownerName:"",shopName:"",landmark:"",latitude:"9.151",longitude:"7.324",demoNoticeAccepted:false}),[showPassword,setShowPassword]=useState(false),[capsOn,setCapsOn]=useState(false);
   const [shops,setShops]=useState<Shop[]>([]),[shopId,setShopId]=useState("");
   const [stock,setStock]=useState<Batch[]>([]),[events,setEvents]=useState<Event[]>([]),[products,setProducts]=useState<Product[]>([]);
   const [refresh,setRefresh]=useState(0),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[receipt,setReceipt]=useState(""),[photoNotice,setPhotoNotice]=useState("");
@@ -71,7 +72,7 @@ export default function TraderWorkspace() {
   const [addPhoto,setAddPhoto]=useState<NewProductFlow>(null);
   const discardRecording=useRef(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),recordTimer=useRef<ReturnType<typeof setTimeout>|null>(null),mounted=useRef(true);
-  const noticeRef=useRef<HTMLDivElement|null>(null),photoNoticeRef=useRef<HTMLParagraphElement|null>(null),rejectedPhoto=useRef<string|null>(null);
+  const noticeRef=useRef<HTMLDivElement|null>(null),photoNoticeRef=useRef<HTMLParagraphElement|null>(null),rejectedPhoto=useRef<string|null>(null),awaySince=useRef<number|null>(null);
   const product=products.find(p=>p.id===productId),shop=shops.find(s=>s.id===shopId);
   const mismatch=Boolean(product&&suggestedUnit&&product.unit!==suggestedUnit);
 
@@ -100,6 +101,13 @@ export default function TraderWorkspace() {
   },[undo]);
   useEffect(()=>{noticeRef.current?.scrollIntoView({block:"nearest"});},[notice,receipt]);
   useEffect(()=>{photoNoticeRef.current?.scrollIntoView({block:"nearest"});},[photoNotice]);
+  useEffect(()=>{
+    const mark=()=>{awaySince.current=Date.now();};
+    const back=()=>{if(shouldHideAfterBlur(awaySince.current,Date.now()))setShowPassword(false);awaySince.current=null;};
+    const vis=()=>{if(document.hidden)mark();else back();};
+    window.addEventListener("blur",mark);window.addEventListener("focus",back);document.addEventListener("visibilitychange",vis);
+    return()=>{window.removeEventListener("blur",mark);window.removeEventListener("focus",back);document.removeEventListener("visibilitychange",vis);};
+  },[]);
 
   function setShopPin(){
     if(!("geolocation" in navigator)){setNotice(locationErrorMessage(2,"keep the demo pin"));return;}
@@ -115,12 +123,12 @@ export default function TraderWorkspace() {
       const body=authTab==="signup"?{...account,latitude:Number(account.latitude),longitude:Number(account.longitude)}:{email:account.email,password:account.password};
       await post(`/api/auth/${authTab}`,body);
       const session=await api<{shops:Shop[]}>("/api/auth/session");setShops(session.shops);setShopId(session.shops[0]?.id||"");
-      setAccount(a=>({...a,password:""}));
+      setAccount(a=>({...a,password:""}));setShowPassword(false);setCapsOn(false);
     } catch(error){setNotice(friendly(error));} finally{setBusy("");}
   }
   async function signOut() {
     setBusy("logout");
-    try {await api("/api/auth/session",{method:"DELETE"});setShops([]);setShopId("");setStock([]);setEvents([]);setProducts([]);setReview(null);setText("");setReceipt("");setNotice("");}
+    try {await api("/api/auth/session",{method:"DELETE"});setShops([]);setShopId("");setStock([]);setEvents([]);setProducts([]);setReview(null);setText("");setReceipt("");setNotice("");setShowPassword(false);setCapsOn(false);}
     catch(error){setNotice(friendly(error));}finally{setBusy("");}
   }
   function changeProduct(id:string) {setExpiry("");setProductId(id);setBatchId("");setCorrection(null);setReview(null);setUnitChecked(false);}
@@ -306,7 +314,7 @@ export default function TraderWorkspace() {
         <form onSubmit={authenticate} className="form-stack">
           {authTab==="signup"&&<><label>Your name<input required maxLength={120} autoComplete="name" value={account.ownerName} onChange={e=>setAccount({...account,ownerName:e.target.value})}/></label><label>Shop name<input required maxLength={120} value={account.shopName} onChange={e=>setAccount({...account,shopName:e.target.value})}/></label></>}
           <label>Email<input type="email" required autoComplete="email" value={account.email} onChange={e=>setAccount({...account,email:e.target.value})}/></label>
-          <label>Password<input type="password" required minLength={10} maxLength={128} autoComplete={authTab==="signup"?"new-password":"current-password"} value={account.password} onChange={e=>setAccount({...account,password:e.target.value})}/><span className="hint">At least 10 characters. Password recovery is not available in this demo.</span></label>
+          <label>Password<span className="password-row"><input type={showPassword?"text":"password"} required minLength={10} maxLength={128} autoComplete={authTab==="signup"?"new-password":"current-password"} value={account.password} onChange={e=>setAccount({...account,password:e.target.value})} onKeyDown={e=>setCapsOn(e.getModifierState("CapsLock"))} onKeyUp={e=>setCapsOn(e.getModifierState("CapsLock"))} onBlur={()=>setCapsOn(false)}/><button type="button" className="password-toggle" aria-pressed={showPassword} aria-label={showPassword?"Hide password":"Show password"} onClick={()=>setShowPassword(v=>!v)}>{showPassword?"Hide":"Show"}</button></span><span className="hint">At least 10 characters. Password recovery is not available in this demo.</span>{capsOn&&<span className="hint" role="status">Caps Lock is on</span>}</label>
           {authTab==="signup"&&<><label>Nearest landmark<input required maxLength={120} placeholder="e.g. near the market junction" value={account.landmark} onChange={e=>setAccount({...account,landmark:e.target.value})}/></label><div className="inline-actions"><button type="button" className="secondary" disabled={Boolean(busy)||locating} onClick={setShopPin}>{locating?"Reading your location…":"Set my shop location here"}</button></div><span className="hint">Shop pin: {account.latitude}, {account.longitude}{pinFromDevice?" (from your device)":" (illustrative Kubwa demo pin)"}. This demo does not verify shop locations.</span><label className="check"><input type="checkbox" required checked={account.demoNoticeAccepted} onChange={e=>setAccount({...account,demoNoticeAccepted:e.target.checked})}/><span>This is a demo. I will use fictitious trader and shop details.</span></label></>}
           <button className="primary" disabled={Boolean(busy)||!status?.accountsConfigured}>{busy==="account"?"Please wait…":authTab==="login"?"Sign in to your shop":"Create trader account"}</button>
         </form>

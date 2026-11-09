@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { shouldHideAfterBlur } from "@/lib/password-field";
 type Pending={id:string;name:string;brand:string;variant:string;size:string;unit:string;category:string;flag_reason:string|null;created_at:string;shop_name:string};
 const messages:Record<string,string>={
   OPERATOR_DISABLED:"Product review is not enabled on this server.",
@@ -12,9 +13,17 @@ const messages:Record<string,string>={
 const friendly=(error:unknown)=>error instanceof Error?(messages[error.message]||messages.REQUEST_FAILED):messages.REQUEST_FAILED;
 const time=(value:string)=>new Date(value).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Lagos"});
 export default function OperatorPage(){
-  const [code,setCode]=useState(""),[pending,setPending]=useState<Pending[]|null>(null),[photos,setPhotos]=useState<Record<string,string>>({}),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[rowNote,setRowNote]=useState<{id:string;text:string}|null>(null);
+  const [code,setCode]=useState(""),[pending,setPending]=useState<Pending[]|null>(null),[photos,setPhotos]=useState<Record<string,string>>({}),[busy,setBusy]=useState(""),[notice,setNotice]=useState(""),[rowNote,setRowNote]=useState<{id:string;text:string}|null>(null),[showCode,setShowCode]=useState(false),[capsOn,setCapsOn]=useState(false);
   const noticeRef=useRef<HTMLParagraphElement|null>(null);
+  const awaySince=useRef<number|null>(null);
   useEffect(()=>{noticeRef.current?.scrollIntoView({block:"nearest"});},[notice]);
+  useEffect(()=>{
+    const mark=()=>{awaySince.current=Date.now();};
+    const back=()=>{if(shouldHideAfterBlur(awaySince.current,Date.now()))setShowCode(false);awaySince.current=null;};
+    const vis=()=>{if(document.hidden)mark();else back();};
+    window.addEventListener("blur",mark);window.addEventListener("focus",back);document.addEventListener("visibilitychange",vis);
+    return()=>{window.removeEventListener("blur",mark);window.removeEventListener("focus",back);document.removeEventListener("visibilitychange",vis);};
+  },[]);
   async function load(){
     if(!code.trim()){setNotice("Enter the owner access code first.");return;}
     setBusy("load");setNotice("");
@@ -52,7 +61,7 @@ export default function OperatorPage(){
         <h2>Flagged products</h2>
         <p className="muted">New trader products that automatic checks flagged wait here. Approve to show them to buyers, or reject to keep them hidden. Photos are kept only for review.</p>
         <div className="field-row">
-          <label>Owner access code<input type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} placeholder="Access code"/></label>
+          <label>Owner access code<span className="password-row"><input type={showCode?"text":"password"} autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} placeholder="Access code" onKeyDown={e=>setCapsOn(e.getModifierState("CapsLock"))} onKeyUp={e=>setCapsOn(e.getModifierState("CapsLock"))} onBlur={()=>setCapsOn(false)}/><button type="button" className="password-toggle" aria-pressed={showCode} aria-label={showCode?"Hide access code":"Show access code"} onClick={()=>setShowCode(v=>!v)}>{showCode?"Hide":"Show"}</button></span>{capsOn&&<span className="hint" role="status">Caps Lock is on</span>}</label>
         </div>
         <div className="inline-actions"><button className="primary" disabled={busy==="load"||!code.trim()} onClick={load}>{busy==="load"?"Loading…":"Show flagged products"}</button></div>
         {notice&&<p className="notice" role="status" ref={noticeRef}>{notice}</p>}

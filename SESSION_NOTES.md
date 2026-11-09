@@ -197,3 +197,14 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   sizes, singular/plural units. Variant stored (no migration needed).
 - Gates: npm test 76/76, lint 0 errors, build green. No restart needed
   (no migration, no env change); dev server hot-reloads.
+
+## 8 November 2026 - Show/Hide password toggles + Caps Lock hint
+
+- Every password input (trader sign-in, create-account, /operator access
+  code) has a Show/Hide button: starts hidden, aria-pressed, 44px tap
+  target. Returns to hidden after sign-in, after sign-out, and after the
+  page loses focus for more than a minute (tested boundary).
+- Caps Lock hint appears under the field while typing with Caps Lock on.
+- Autocomplete untouched (current-password / new-password / off). The
+  visible text is never logged, stored or sent anywhere new.
+- Gates: npm test 77/77, lint 0 errors, build green. No restart needed.
