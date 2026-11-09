@@ -152,7 +152,17 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - When distinct sessions reach the confirmed minimum of 5 distinct searchers in 24 hours (owner decision, 7 November 2026), notify opted-in nearby traders who do not stock it.
 - Optionally prompt the buyer for a photo: strip image metadata, show only a cropped product image, require consent text. Buyer photos are stored only if included in an alert and only briefly, and shown to traders only after the minimum is reached (owner decision, 7 November 2026).
 - Aggregate and anonymous; seed simulated demand and label it simulated. Paid-tier gating is a label only for now.
-- Acceptance: to be agreed with the owner before building.
+- Acceptance (owner, 9 November 2026), unmet-demand alerts, done when:
+  1. When a buyer search finds nothing after widening to 20 km, or the product is not in the catalog, the server increments a daily aggregate by demand key and coarse area cell, counting each visitor once per key per cell per day.
+  2. The demand key is the catalog product ID when a product matched, otherwise only the short validated idea from the AI (letters and numbers only, 40 characters at most, rejecting phone-number-like or offensive text); with no AI consent, unknown products are not counted.
+  3. The area cell is a grid cell about 2 km wide computed on the server, and coordinates are never stored.
+  4. The long-lived aggregate holds counts only, with no visitor IDs or search text, and distinct counting uses the existing 24-hour search records.
+  5. An alert appears only when at least 5 distinct visitors searched in 24 hours (owner-confirmed), and groups below that are never returned by any API.
+  6. Alerts go to opted-in traders within about 5 km (the same or adjacent cells) who do not stock the product, at most one per product per day, shown in the trader dashboard first with no external messaging.
+  7. The dashboard says "N people near you searched for X and found no shop", labelled "Preview of a paid feature", and seeded demand is labelled simulated.
+  8. The optional buyer photo prompt after a failed search uses the Feature Q pipeline, with consent text, three photos per visitor per day at most, a stored photo only if it joins an alert and for at most 7 days (owner to confirm), one cropped representative photo shown to traders only after the threshold, and deletion when the alert expires.
+  9. Traders have an on/off setting for these alerts, saved per shop.
+  10. Tests cover the threshold boundary, distinct counting, cell rounding with no coordinates stored, key validation, opt-out, photo expiry and simulated labels, plus a beginner browser checklist.
 
 ### Feature Q: shared image pipeline
 - One pipeline built before the photo parts of N, H and P: type and size validation, metadata stripping, resizing, safety check, AI call, storage decision. Storage rule (owner decision, 7 November 2026): store cropped trader product photos; buyer photos only if included in an alert and only briefly.

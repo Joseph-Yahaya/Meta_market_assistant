@@ -256,3 +256,13 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   I fit see rice?" -> Demo Pantry Rice; "paracetamol" -> not in catalog
   (idea: Paracetamol Tablets).
 - No failures. Phrases and matching unchanged; nothing tuned.
+
+## 9 November 2026 - Feature P acceptance criteria agreed (docs only)
+
+- Owner set 10 acceptance criteria for Feature P (unmet-demand alerts)
+  in BUILD_PLAN.md: daily aggregate by demand key and 2 km cell, distinct
+  visitors only, validated idea keys, counts-only storage, 5-in-24h
+  threshold, opted-in nearby traders, dashboard-first "Preview of a paid
+  feature" label, optional Q-pipeline photo with consent and 7-day expiry
+  (owner to confirm), per-shop on/off setting, tests plus checklist.
+- Nothing built. Awaiting owner go-ahead.
