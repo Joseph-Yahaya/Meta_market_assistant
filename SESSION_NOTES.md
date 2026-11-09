@@ -321,3 +321,8 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   no local data tracked. Pushed next-phase (23 commits) to
   https://github.com/Joseph-Yahaya/Meta_market_assistant with
   git push -u origin next-phase, no force. Main untouched.
+
+## 9 November 2026 - Loose-goods fix verified, backup confirmed
+
+- The owner verified the loose-goods photo fix in the browser.
+  Next-phase is backed up to the owner's GitHub repository.
