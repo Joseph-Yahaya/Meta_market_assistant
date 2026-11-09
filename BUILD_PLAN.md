@@ -135,7 +135,17 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - Non-AI part built early on 7 November 2026: radius selector removed, server widens 5→10→20 km automatically with a clear message. Free-text multi-variant matching added the same day, still without AI. AI query interpretation still pending.
 - Remove the radius selector. The AI interprets typed or spoken queries and maps them to a catalog product or a "not yet in catalog" idea.
 - Distance ranking stays deterministic. Start at 5 km and widen automatically to 10 and 20 km with a clear message.
-- Acceptance: to be agreed with the owner before building.
+- Acceptance (owner, 9 November 2026), AI-assisted buyer search, done when:
+  1. The existing local matching runs first; the AI is called only when local matching finds nothing or is ambiguous.
+  2. Spark receives the query plus a short candidate list from the catalog and returns structured JSON: either product IDs chosen only from that list, or "not in catalog" with a short product-name idea; every returned ID is validated against the catalog and the app never trusts invented IDs.
+  3. It copes with misspellings, English and Pidgin phrasing and common local names, and a test set of at least 20 phrases reports an honest pass rate.
+  4. The query is treated as data, never as instructions, and is limited to 120 characters.
+  5. A short notice near the search box says the words are sent to Meta's AI to understand them, and search still works with local matching alone if the buyer declines or the AI is unavailable or capped.
+  6. AI searches are limited to 30 per visitor per day plus the global daily cap and rate limits, and fall back to local matching when reached.
+  7. No raw query text is stored or logged, only product IDs as now, and the "not in catalog" idea is not stored (Feature P decides what to aggregate).
+  8. Distance ranking, 5, 10, 20 km widening, tokens, polling and privacy rules are unchanged.
+  9. Voice search uses the same path after transcription and still asks the buyer to confirm the product.
+  10. Tests cover injection text, invalid IDs, caps, fallback and the 20-phrase set, plus a beginner browser checklist.
 
 ### Feature P: unmet-demand alerts
 - When a search finds nothing after widening, increment a daily aggregate by product key and coarse area cell, distinct sessions only.

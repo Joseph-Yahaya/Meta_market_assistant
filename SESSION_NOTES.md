@@ -208,3 +208,19 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
 - Autocomplete untouched (current-password / new-password / off). The
   visible text is never logged, stored or sent anywhere new.
 - Gates: npm test 77/77, lint 0 errors, build green. No restart needed.
+
+## 9 November 2026 - Owner browser verification passed
+
+- The owner verified Feature N (add a product by photo), the trader
+  usability fixes, the /operator review page and the password Show / Hide
+  buttons in the browser. All accepted.
+
+## 9 November 2026 - Feature O acceptance criteria agreed (docs only)
+
+- Owner set 10 acceptance criteria for Feature O (AI-assisted buyer
+  search) in BUILD_PLAN.md: local matching first, AI only on no-match or
+  ambiguity, validated product IDs or "not in catalog", 20-phrase test
+  set, consent notice with local fallback, 30 AI searches/visitor/day,
+  no raw query storage, unchanged ranking/widening/tokens/polling,
+  voice on the same path, tests plus beginner checklist.
+- Nothing built. Awaiting owner go-ahead.
