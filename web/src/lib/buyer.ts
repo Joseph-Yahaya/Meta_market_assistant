@@ -26,6 +26,13 @@ export function readBuyer(scope:string,token:unknown,secret:string,now=Date.now(
   if(!payload||typeof payload!=="object"||!Number.isSafeInteger(payload.expires)||payload.expires<=now)throw new Error("BUYER_TOKEN_EXPIRED");
   return payload;
 }
+export function verifyFeedbackTicket(token: unknown, secret: string, visitor: string): FeedbackTicket {
+  let payload: Record<string, unknown>;
+  try { payload = readBuyer("buyer-feedback", token, secret); }
+  catch { throw new Error("FEEDBACK_EXPIRED"); }
+  if (payload.visitor !== visitor || !buyerUuid(payload.shopId) || !buyerUuid(payload.productId) || !buyerUuid(payload.searchId)) throw new Error("INVALID_FEEDBACK");
+  return payload as unknown as FeedbackTicket;
+}
 export function visitorDigest(visitor:string,secret:string,now=Date.now()) {
   return createHmac("sha256",secret).update(`buyer-day:${new Date(now).toISOString().slice(0,10)}:${visitor}`).digest("hex");
 }

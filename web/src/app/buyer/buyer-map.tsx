@@ -2,9 +2,9 @@
 import { useEffect,useRef,useState } from "react";
 import L from "leaflet";
 import type {NearbyShop} from "./types";
-type Props={latitude:number;longitude:number;shops:NearbyShop[];selected:string|null;onPin:(lat:number,lng:number)=>void;onShop:(shop:NearbyShop)=>void};
-export default function BuyerMap({latitude,longitude,shops,selected,onPin,onShop}:Props) {
-  const container=useRef<HTMLDivElement>(null),map=useRef<L.Map|null>(null),layer=useRef<L.LayerGroup|null>(null);
+type Props={latitude:number;longitude:number;shops:NearbyShop[];selected:string|null;route:{points:[number,number][];attribution:string}|null;onPin:(lat:number,lng:number)=>void;onShop:(shop:NearbyShop)=>void};
+export default function BuyerMap({latitude,longitude,shops,selected,route,onPin,onShop}:Props) {
+  const container=useRef<HTMLDivElement>(null),map=useRef<L.Map|null>(null),layer=useRef<L.LayerGroup|null>(null),attribution=useRef<string|null>(null);
   const first=useRef([latitude,longitude] as [number,number]),handlers=useRef({onPin,onShop});
   const [tileError,setTileError]=useState(false);
   useEffect(()=>{handlers.current={onPin,onShop};},[onPin,onShop]);
@@ -29,7 +29,14 @@ export default function BuyerMap({latitude,longitude,shops,selected,onPin,onShop
       name.textContent=shop.name;landmark.textContent=shop.landmark;description.append(name,landmark);
       marker.bindPopup(description);marker.on("click",()=>handlers.current.onShop(shop));marker.addTo(layer.current!);
     });
-  },[latitude,longitude,shops,selected]);
+    if(route&&route.points.length>1)L.polyline(route.points,{color:"#9b6d28",weight:5,opacity:0.9}).addTo(layer.current);
+  },[latitude,longitude,shops,selected,route]);
+  useEffect(()=>{
+    const control=map.current?.attributionControl;if(!control)return;
+    if(attribution.current)control.removeAttribution(attribution.current);
+    attribution.current=route?route.attribution:null;
+    if(attribution.current)control.addAttribution(attribution.current);
+  },[route]);
   useEffect(()=>{map.current?.setView([latitude,longitude],14,{animate:false});},[latitude,longitude]);
-  return <div className="buyer-map-wrap"><div ref={container} className="buyer-map" role="region" aria-label="Map of nearby simulated shops; drag the search pin or click to choose a search pin"/>{tileError&&<p className="map-warning" role="status">Some map tiles could not load. Shop details and distances remain available in the list.</p>}<p className="hint">Drag the blue search pin or click the map to move it. Numbered pins: simulated shops. No route is calculated.</p></div>;
+  return <div className="buyer-map-wrap"><div ref={container} className="buyer-map" role="region" aria-label="Map of nearby simulated shops; drag the search pin or click to choose a search pin"/>{tileError&&<p className="map-warning" role="status">Some map tiles could not load. Shop details and distances remain available in the list.</p>}<p className="hint">Drag the blue search pin or click the map to move it. Numbered pins: simulated shops. A road line appears only after you tap Show route on a shop.</p>{route&&<p className="hint">Road line: {route.attribution}.</p>}</div>;
 }

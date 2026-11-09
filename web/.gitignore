@@ -43,3 +43,4 @@ next-env.d.ts
 .local-demo/
 .local-run/
 .local-uploads/
+scripts/trips.local.json

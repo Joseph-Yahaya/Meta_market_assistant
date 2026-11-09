@@ -183,6 +183,17 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
 - Part two (after P): the provider comparison and choice, then server-side road distance and time for the 5 nearest shops only, with caching, rate limits, a notice that location is sent to the provider, and straight-line distance as the fallback. A route line on the map.
 - Provider test (owner decision, 7 November 2026): compare OpenRouteService and Mapbox on at least 10 real Kubwa trips, walking and driving. Default mode walking, driving optional. Choose only after the comparison.
 - Acceptance (part one): the buyer can share device location, drag the pin, or use the area/landmark fallback, with no typed coordinates for normal users; no raw buyer coordinates are stored (verified by tests); the trader sets the shop pin at sign-up with one tap; "Get directions" opens the buyer's own maps app for the chosen shop; straight-line distance and landmark remain visible throughout; automated tests pass and the owner's manual browser checklist passes.
+- Acceptance (part two, owner, 9 November 2026):
+  1. A provider layer supports OpenRouteService and Mapbox, selected by ROUTING_PROVIDER (none, ors or mapbox; default none), with keys read only from ORS_API_KEY and MAPBOX_ACCESS_TOKEN in the environment, never printed, logged or sent to the browser.
+  2. With none, a missing key or any provider error, the app keeps showing straight-line distance and the landmark, with no error for the buyer.
+  3. Road distance and time are requested only after the buyer taps "Show route" on one shop, never for every result. (This per-tap rule replaces the older "5 nearest shops" prefetch idea above.)
+  4. Walking is the default and driving is an option.
+  5. A notice appears next to the button saying the buyer's search pin and the shop's location are sent to the routing provider for this one request, and nothing is stored.
+  6. Results are cached briefly by rounded coordinate pairs, with rate limits per visitor and a global daily cap like the AI calls.
+  7. The route is drawn as a line on the existing map, with the provider's required attribution, and the list shows "about N min walking, X km by road" next to the straight-line distance.
+  8. A comparison script reads trips from a JSON file the owner fills in (start and shop coordinates, optional note of the real time known), runs them on each provider with a key, walking and driving, and prints only distances, times and differences; it makes no request without telling the owner first.
+  9. Before relying on either provider, their current terms and pricing pages are read and reported (commercial use, showing routes on an OpenStreetMap map, free limits), quoting nothing long, with no choice made for the owner.
+  10. Tests with a fake provider cover fallback, caching, caps, invalid coordinates, provider errors and no key printing.
 
 ## 7. Later, not now (parked ideas, so they are not forgotten)
 

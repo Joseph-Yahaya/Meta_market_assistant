@@ -12,6 +12,7 @@
     "check:image": "node --env-file-if-exists=.env.local scripts/check-image.mjs",
     "check:pipeline": "node --env-file-if-exists=.env.local scripts/check-pipeline.mjs",
     "check:buyer-ai": "node --env-file-if-exists=.env.local scripts/check-buyer-ai.mjs",
+    "compare:routes": "node --env-file-if-exists=.env.local scripts/compare-routes.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/seed.mjs",
     "test": "node --test tests/*.test.mjs",

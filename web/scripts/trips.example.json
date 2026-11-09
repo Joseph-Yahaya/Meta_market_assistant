@@ -1,0 +1,23 @@
+{
+  "_comment": "EXAMPLE PLACEHOLDER TRIPS ONLY - not real data. Copy this file to trips.local.json (ignored by git) in the same folder, replace every trip with real Kubwa trips, and remove the example flags.",
+  "trips": [
+    {
+      "label": "EXAMPLE 1 - replace me",
+      "example": true,
+      "from": { "latitude": 0.001, "longitude": 0.001 },
+      "to": { "latitude": 0.002, "longitude": 0.002 },
+      "realMinutesWalking": null,
+      "realMinutesDriving": null,
+      "note": "Placeholder near Null Island. Replace with a real start and shop."
+    },
+    {
+      "label": "EXAMPLE 2 - replace me",
+      "example": true,
+      "from": { "latitude": 0.003, "longitude": 0.001 },
+      "to": { "latitude": 0.004, "longitude": 0.003 },
+      "realMinutesWalking": 25,
+      "realMinutesDriving": null,
+      "note": "Placeholder. realMinutesWalking shows how to record a time you know."
+    }
+  ]
+}

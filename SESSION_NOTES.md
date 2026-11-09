@@ -341,3 +341,45 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   parked ideas). No code change needed for that switch later.
 - Gates: npm test 105/105, lint 0 errors (8 img warnings), build green.
 - Committed on next-phase (hosting step 1); not pushed.
+
+## 9 November 2026 - Hosted on Railway, live during finals livestream
+
+- Project ai-market-assistant: Postgres + app service (next-phase branch,
+  root dir web). Public URL: https://meta-ai-assistant.up.railway.app
+- Fixes during deploy: installed Railway GitHub App on Joseph-Yahaya
+  (was only on orgs, branches would not load); domain target port 3000
+  gave 502 because the app listens on Railway PORT 8080; set to 8080.
+- Variables set: DATABASE_URL (reference), DEMO_MODE, ALLOW_DEMO_SEED,
+  ENABLE_META_CALLS, MODEL_API_KEY, APP_ORIGIN. SESSION_SECRET and
+  DEMO_ACCESS_CODE still to verify; a bogus variable named Name was
+  spotted and must be removed. Redeploy + demo-login test pending.
+
+## 9 November 2026 - Feature R part two built (routing providers, per-tap)
+
+- Criteria recorded in BUILD_PLAN.md. Per-tap Show route replaces the old
+  5-nearest prefetch idea (noted in the plan).
+- New: src/lib/routing.ts (provider layer, pure), src/server/route-service.ts
+  (transient coords, hashed counters only, 15-min in-memory cache),
+  POST /api/buyer/route, buyer Show route button + Walking/Driving choice +
+  provider notice + road line on the Leaflet map with attribution.
+- Caps: MODEL_DAILY_CAP_ROUTING default 50/visitor/day (new scope),
+  global uses the existing 500/day value with its own counter, plus 60
+  taps/15 min per visitor. Cache hits skip daily caps. Default
+  ROUTING_PROVIDER=none: no provider is called until the owner chooses.
+- Scripts: compare-routes.mjs (plan mode makes no requests; --run executes;
+  prints only labels, distances, times, differences; never keys or coords),
+  trips.example.json (labelled placeholders), compare:routes npm entry,
+  trips.local.json gitignored.
+- Terms/pricing read 9 Nov 2026 (no choice made): ORS plans/ToS now live
+  under account.heigit.org (JS pages, text not readable); secondary sources
+  converge on free Standard ~2000 directions/day, 40/min, commercial use
+  allowed, results CC BY-SA 4.0, HeiGIT+OSM attribution required.
+  api.openrouteservice.org still resolves (checked via DNS); one competitor
+  page claimed a shutdown after 2 Nov 2026 - unverified, treat with caution.
+  Mapbox official pricing: Directions free up to 100,000/month; official
+  attribution docs require the Mapbox logo plus text attribution prominently
+  on/next to a non-Mapbox map, so our text-only line is not enough if
+  Mapbox is chosen and the logo must be added then. Mapbox ToS page text
+  could not be extracted; recheck before relying.
+- Gates: npm test 121/121, lint 0 errors (8 pre-existing img warnings),
+  build green incl. /api/buyer/route. No live provider calls made.
