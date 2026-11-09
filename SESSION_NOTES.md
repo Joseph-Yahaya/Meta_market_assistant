@@ -326,3 +326,18 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
 
 - The owner verified the loose-goods photo fix in the browser.
   Next-phase is backed up to the owner's GitHub repository.
+
+## 9 November 2026 - Hosting step 1: Railway readiness fixes (uncommitted)
+
+- Owner created a Railway account; deploy of this clone is in progress.
+- Shared the simulated-demand seed: web/scripts/seed-demand.mjs is now used
+  by both local boot (src/server/local-db.ts) and the hosted release step
+  (scripts/release.mjs runs migrate, demo seed, then demand seed). A new
+  test checks the seed's cell math matches the app, so hosted alerts land
+  in the same cells. Local and hosted flows use identical fixtures.
+- Dockerfile now creates /app/.local-uploads owned by the app user.
+  Uploads still live on the container's temporary disk and are lost on
+  redeploy; persistent or object storage is a later decision (BUILD_PLAN
+  parked ideas). No code change needed for that switch later.
+- Gates: npm test 105/105, lint 0 errors (8 img warnings), build green.
+- Committed on next-phase (hosting step 1); not pushed.

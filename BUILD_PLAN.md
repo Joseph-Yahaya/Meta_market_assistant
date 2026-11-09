@@ -194,7 +194,7 @@ These were discussed and **deliberately left out of the current build**. Do not 
 | Promotions and paid ads | Traders pay to promote an item | Must never silently change search ranking; needs trust first | Pilot running, ranking policy written and approved by the owner |
 | Loan referral from the ledger | A trader's sales ledger helps them apply for a loan | Lending and credit scoring need a licensed partner and verified data; self-reported cash sales are weak evidence | A CBN-licensed lender or partner agreement; verified payment or purchase data; consent text reviewed by a qualified adviser |
 | Production-grade fraud detection | Stronger fake-sale detection than the rules in Feature J | Needs real data to tune and measure | Months of real ledger data; documented false-positive rates |
-| Hosting for this clone | A live site for the owner's own version | No hosting exists yet; cost and account decisions are the owner's | Owner chooses a host (Railway is one option), sets a budget, creates the account and a private database; then deploy from the owner's own repo only |
+| Hosting for this clone | Railway deploy of this clone (owner's account created 9 Nov 2026, deploy from owner's repo only) | Ephemeral container disk: uploaded photos are lost on redeploy until persistent or object storage is chosen; secrets via Railway dashboard only, never in git | Deploy verified: /api/health green, demo data seeded incl. simulated demand, photo upload works; then decide persistent storage for uploads |
 | Staff accounts and multi-shop owners | More than one person logs for a shop, or one owner has several shops | Current rule is one owner per shop | Real traders ask for it in the pilot; identity rules agreed |
 | Real shop verification | Verified shop pins and identity before public listing | Demo pins are illustrative | Part of Feature F, before any real data |
 | Telegram or SMS delivery | Messaging fallbacks when WhatsApp is not suitable | WhatsApp comes first; avoid extra channels | After Feature D works and traders say what they prefer |
@@ -210,7 +210,7 @@ Also keep in mind: the original problem statement (price imbalance and exploitat
 - Spike thresholds and minimum group size (proposal above).
 - Quiet hours and notification limits.
 - Language pass threshold.
-- Where to host this clone later (it has no hosting yet) and whether to share improvements with the teammate who owns the submitted repository.
+- Hosting for this clone: Railway chosen, account created 9 Nov 2026, deploy in progress; whether to share improvements with the teammate who owns the submitted repository.
 - Whether the owner has their own Meta API key for local live model calls.
 - Daily caps per account and overall (current defaults: interpret 100, transcribe 50, buyer voice 20, global 500).
 

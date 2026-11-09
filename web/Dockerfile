@@ -14,6 +14,7 @@ COPY --chown=node:node --from=build /app/.next/static ./.next/static
 COPY --chown=node:node --from=build /app/public ./public
 COPY --chown=node:node --from=build /app/scripts ./scripts
 COPY --chown=node:node --from=build /app/db ./db
+RUN mkdir -p /app/.local-uploads && chown node:node /app/.local-uploads
 USER node
 EXPOSE 3000
 CMD ["node", "scripts/start-production.mjs"]

@@ -1,6 +1,7 @@
 import { before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { readFileSync } from "node:fs";
 import { migrate } from "../scripts/migrate.mjs";
 import {
   DEMAND_SETTINGS,
@@ -193,4 +194,14 @@ test("idea tokens sign the visitor and idea with an expiry", () => {
 test("demand alerts default to off per shop", async () => {
   const row = (await db.query("SELECT demand_alerts FROM shops WHERE id=$1", [shop])).rows[0];
   assert.equal(row.demand_alerts, false);
+});
+
+test("hosted demand seed uses the same cell math as the app", async () => {
+  const { seedCellId, seedNeighbors } = await import("../scripts/seed-demand.mjs");
+  for (const [lat, lng] of [[9.151, 7.324], [9.153, 7.328], [9.13, 7.3], [-3.5, 2.1]]) {
+    assert.equal(seedCellId(lat, lng), demandCellId(lat, lng));
+    assert.deepEqual(new Set(seedNeighbors(seedCellId(lat, lng))), new Set(neighborCells(seedCellId(lat, lng))));
+  }
+  assert.ok(!/require\(|process\.env\.(DATABASE_URL|MODEL_API_KEY|SESSION_SECRET)/.test(
+    readFileSync(new URL("../scripts/seed-demand.mjs", import.meta.url), "utf8")));
 });
