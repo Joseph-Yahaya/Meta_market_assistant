@@ -15,6 +15,13 @@ export const ROUTE_CACHE_TTL_MS = 15 * 60 * 1000;
 export const ROUTE_CACHE_MAX = 200;
 export const ROUTE_POINT_LIMIT = 2000;
 export const ROUTE_RATE_LIMIT = 60;
+// Verified 10 November 2026 in the official ORS announcement "Deprecating
+// api.openrouteservice.org in favour of api.heigit.org"
+// (ask.openrouteservice.org, Announcements, 28 April 2026): directions moved
+// from api.openrouteservice.org/v2/directions to
+// api.heigit.org/openrouteservice/v2/directions, and the old host was shut
+// down 02-06 November 2026. Overridable with ORS_BASE_URL.
+export const ORS_DEFAULT_BASE = "https://api.heigit.org/openrouteservice";
 export const ROUTING_ATTRIBUTION = {
   ors: "Road route by openrouteservice (HeiGIT) · map data © OpenStreetMap contributors",
   mapbox: "Road route by Mapbox · map data © OpenStreetMap contributors",
@@ -27,6 +34,19 @@ export function routingKeyName(provider: RoutingProvider): "ORS_API_KEY" | "MAPB
   if (provider === "ors") return "ORS_API_KEY";
   if (provider === "mapbox") return "MAPBOX_ACCESS_TOKEN";
   return null;
+}
+// Only https bases are accepted; anything else falls back to the verified
+// default so a typo can never silently redirect key-bearing requests.
+export function parseOrsBase(raw: unknown): string {
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const url = new URL(raw.trim());
+      if (url.protocol === "https:" && !url.username && !url.password) {
+        return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+      }
+    } catch { /* fall through to the default */ }
+  }
+  return ORS_DEFAULT_BASE;
 }
 export function parseRouteMode(value: unknown): RouteMode {
   return value === "driving" ? "driving" : "walking";
@@ -67,10 +87,10 @@ export function createRouteCache(ttlMs = ROUTE_CACHE_TTL_MS, max = ROUTE_CACHE_M
 export type RouteCache = ReturnType<typeof createRouteCache>;
 
 // Request builders: the key travels only in the returned init object.
-export function orsRequest(from: RoutePoint, to: RoutePoint, mode: RouteMode, key: string) {
+export function orsRequest(from: RoutePoint, to: RoutePoint, mode: RouteMode, key: string, base: string = ORS_DEFAULT_BASE) {
   const profile = mode === "driving" ? "driving-car" : "foot-walking";
   return {
-    url: `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+    url: `${base}/v2/directions/${profile}/geojson`,
     init: {
       method: "POST",
       headers: { Authorization: key, "Content-Type": "application/json" },

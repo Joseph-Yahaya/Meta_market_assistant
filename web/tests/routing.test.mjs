@@ -6,11 +6,13 @@ import { signBuyer, verifyFeedbackTicket } from "../src/lib/buyer.ts";
 import { dailyCapFor, dailyDateKey } from "../src/lib/model-limits.ts";
 import * as routing from "../src/lib/routing.ts";
 import {
+  ORS_DEFAULT_BASE,
   ROUTING_ATTRIBUTION,
   createRouteCache,
   formatRoadText,
   mapboxRequest,
   orsRequest,
+  parseOrsBase,
   parseRouteMode,
   parseRoutingProvider,
   roundCoord,
@@ -44,9 +46,9 @@ const mapboxPayload = {
     geometry: { coordinates: [[7.324, 9.151], [7.33, 9.155]] },
   }],
 };
-const fakeFetch = (payload, calls) => async (url, init) => {
+const fakeFetch = (payload, calls, status = 200) => async (url, init) => {
   calls.push({ url, init });
-  return { ok: true, json: async () => payload };
+  return { ok: status >= 200 && status < 300, status, json: async () => payload };
 };
 const ticket = (visitor, overrides = {}) => signBuyer("buyer-feedback", {
   visitor, searchId: searchIds[visitor] ?? searchIds["visitor-a"], shopId: shop, productId: product, expires: Date.now() + 15 * 60000, ...overrides,
@@ -171,10 +173,10 @@ test("omitted mode defaults to walking", async () => {
 
 test("provider failures fall back silently", async () => {
   const failing = [
-    async () => ({ ok: false, json: async () => ({}) }),
+    async () => ({ ok: false, status: 500, json: async () => ({}) }),
     async () => { throw new Error("timeout"); },
-    async () => ({ ok: true, json: async () => ({ nonsense: true }) }),
-    async () => ({ ok: true, json: async () => ({ features: [] }) }),
+    async () => ({ ok: true, status: 200, json: async () => ({ nonsense: true }) }),
+    async () => ({ ok: true, status: 200, json: async () => ({ features: [] }) }),
   ];
   for (const fetchImpl of failing) {
     const outcome = await callFor("visitor-a", { fetchImpl, cache: createRouteCache() });
@@ -261,6 +263,78 @@ test("burst rate limit trips after 60 taps", async () => {
     assert.equal(outcome.status, "route");
   }
   await assert.rejects(callFor("visitor-a", { env, fetchImpl, latitude: 9.0 + 60 * 0.002 }), /TOO_MANY_ATTEMPTS/);
+});
+
+test("ORS uses the verified HeiGIT base, overridable by ORS_BASE_URL", async () => {
+  assert.equal(ORS_DEFAULT_BASE, "https://api.heigit.org/openrouteservice");
+  assert.equal(parseOrsBase(undefined), ORS_DEFAULT_BASE);
+  assert.equal(parseOrsBase(""), ORS_DEFAULT_BASE);
+  assert.equal(parseOrsBase("https://custom.example/ors/"), "https://custom.example/ors");
+  assert.equal(parseOrsBase("http://insecure.example/ors"), ORS_DEFAULT_BASE);
+  assert.equal(parseOrsBase("not a url"), ORS_DEFAULT_BASE);
+  const calls = [];
+  await callFor("visitor-a", { fetchImpl: fakeFetch(orsPayload, calls) });
+  assert.ok(calls[0].url.startsWith("https://api.heigit.org/openrouteservice/v2/directions/"));
+  const custom = [];
+  await callFor("visitor-a", {
+    fetchImpl: fakeFetch(orsPayload, custom),
+    env: { ROUTING_PROVIDER: "ors", ORS_API_KEY: ORS_KEY, ORS_BASE_URL: "https://custom.example/ors" },
+  });
+  assert.ok(custom[0].url.startsWith("https://custom.example/ors/v2/directions/"));
+});
+
+test("swapped coordinates fail clearly: ORS expects longitude first", () => {
+  const from = { latitude: 9.151, longitude: 7.324 }, to = { latitude: 9.155, longitude: 7.33 };
+  const coords = JSON.parse(orsRequest(from, to, "walking", "k").init.body).coordinates;
+  assert.deepEqual(coords[0], [7.324, 9.151], "ORS body must be [longitude, latitude], not [latitude, longitude]");
+  assert.deepEqual(coords[1], [7.33, 9.155], "ORS body must be [longitude, latitude], not [latitude, longitude]");
+  assert.notDeepEqual(coords[0], [from.latitude, from.longitude], "latitude-first order would route to the wrong place");
+});
+
+test("Kubwa coordinates keep longitude-first order in every request", async () => {
+  const from = { latitude: 9.151, longitude: 7.324 }, to = { latitude: 9.155, longitude: 7.33 };
+  for (const mode of ["walking", "driving"]) {
+    const orsCoords = JSON.parse(orsRequest(from, to, mode, "k").init.body).coordinates;
+    assert.deepEqual(orsCoords, [[7.324, 9.151], [7.33, 9.155]], `ORS ${mode} must send longitude first`);
+    assert.ok(mapboxRequest(from, to, mode, "k").url.includes("7.324,9.151;7.33,9.155"), `Mapbox ${mode} must send longitude first`);
+  }
+  const orsCalls = [];
+  await callFor("visitor-a", { fetchImpl: fakeFetch(orsPayload, orsCalls) });
+  assert.deepEqual(JSON.parse(orsCalls[0].init.body).coordinates, [[7.324, 9.151], [7.33, 9.155]]);
+  const mapboxCalls = [];
+  await callFor("visitor-a", {
+    fetchImpl: fakeFetch(mapboxPayload, mapboxCalls),
+    env: { ROUTING_PROVIDER: "mapbox", MAPBOX_ACCESS_TOKEN: MAPBOX_KEY },
+  });
+  assert.ok(mapboxCalls[0].url.includes("7.324,9.151;7.33,9.155"));
+});
+
+test("401, 403 and 404 fall back with no key printed", async () => {
+  for (const status of [401, 403, 404]) {
+    const outcome = await callFor("visitor-a", {
+      fetchImpl: fakeFetch({ error: { message: "refused" } }, [], status),
+      cache: createRouteCache(),
+    });
+    assert.equal(outcome.status, "unavailable");
+    assert.ok(!JSON.stringify(outcome).includes(ORS_KEY));
+  }
+  const noRoute = await callFor("visitor-a", {
+    fetchImpl: fakeFetch({ code: "NoRoute", routes: [] }, []),
+    env: { ROUTING_PROVIDER: "mapbox", MAPBOX_ACCESS_TOKEN: MAPBOX_KEY },
+    cache: createRouteCache(),
+  });
+  assert.equal(noRoute.status, "unavailable");
+  assert.ok(!JSON.stringify(noRoute).includes(MAPBOX_KEY));
+});
+
+test("429 waits briefly then falls back", async () => {
+  let waited = 0;
+  const outcome = await callFor("visitor-a", {
+    fetchImpl: fakeFetch({}, [], 429),
+    sleep: async (ms) => { waited = ms; },
+  });
+  assert.equal(outcome.status, "unavailable");
+  assert.equal(waited, 1000);
 });
 
 test("request builders pick the right profiles", () => {

@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 
 export type RouteDb = { query: (sql: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> };
-export type RouteFetch = (url: string, init?: Record<string, unknown>) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
+export type RouteFetch = (url: string, init?: Record<string, unknown>) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 export type RoutePointLike = { latitude: number; longitude: number };
 export type RouteResultLike = {
   distanceM: number; durationS: number; points: [number, number][];
@@ -21,8 +21,9 @@ export type RoutingImpl = {
   parseRoutePoint: (latitude: unknown, longitude: unknown) => RoutePointLike;
   parseRoutingProvider: (raw: unknown) => "none" | "ors" | "mapbox";
   routingKeyName: (provider: "none" | "ors" | "mapbox") => "ORS_API_KEY" | "MAPBOX_ACCESS_TOKEN" | null;
+  parseOrsBase: (raw: unknown) => string;
   routeCacheKey: (provider: string, mode: string, from: RoutePointLike, to: RoutePointLike) => string;
-  orsRequest: (from: RoutePointLike, to: RoutePointLike, mode: "walking" | "driving", key: string) => { url: string; init: Record<string, unknown> };
+  orsRequest: (from: RoutePointLike, to: RoutePointLike, mode: "walking" | "driving", key: string, base: string) => { url: string; init: Record<string, unknown> };
   mapboxRequest: (from: RoutePointLike, to: RoutePointLike, mode: "walking" | "driving", key: string) => { url: string; init: Record<string, unknown> };
   parseOrsRoute: (payload: unknown, mode: "walking" | "driving") => RouteResultLike;
   parseMapboxRoute: (payload: unknown, mode: "walking" | "driving") => RouteResultLike;
@@ -34,8 +35,10 @@ export type RouteRequest = {
   db: RouteDb; fetchImpl: RouteFetch; env: Record<string, string | undefined>; cache: RouteCacheLike; R: RoutingImpl;
   caps: { routing: number; global: number }; day: string; rateLimit: number;
   verifyTicket: (token: unknown) => RouteTicket;
+  sleep?: (ms: number) => Promise<void>;
   visitor: string; token: unknown; latitude: unknown; longitude: unknown; mode: unknown;
 };
+const defaultSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 async function countUp(db: RouteDb, key: string, limit: number, windowSql: string): Promise<void> {
   const hashed = createHash("sha256").update(key).digest("hex");
@@ -81,10 +84,20 @@ export async function requestRoute(input: RouteRequest): Promise<RouteOutcome> {
   const hit = input.cache.get(cacheKey);
   if (hit) return { status: "route", distanceM: hit.distanceM, durationS: hit.durationS, mode: hit.mode, provider: hit.provider, points: hit.points, attribution: hit.attribution, cached: true };
   await limitRouteDaily(input.db, input.visitor, input.day, input.caps);
-  const built = provider === "ors" ? input.R.orsRequest(from, to, mode, key) : input.R.mapboxRequest(from, to, mode, key);
+  const built = provider === "ors"
+    ? input.R.orsRequest(from, to, mode, key, input.R.parseOrsBase(input.env.ORS_BASE_URL))
+    : input.R.mapboxRequest(from, to, mode, key);
   let payload: unknown;
   try {
     const response = await input.fetchImpl(built.url, { ...built.init, signal: AbortSignal.timeout(15000) });
+    // 401/403: key refused or daily quota used up. 404: no road near a
+    // point or no route between the points. All fall back to the
+    // straight-line distance the buyer already sees; the key is never
+    // logged, and nothing here reaches the browser.
+    if (response.status === 429) {
+      await (input.sleep ?? defaultSleep)(1000);
+      return { status: "unavailable" };
+    }
     if (!response.ok) return { status: "unavailable" };
     payload = await response.json();
   } catch { return { status: "unavailable" }; }

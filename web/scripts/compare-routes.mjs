@@ -17,7 +17,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  mapboxRequest, orsRequest, parseMapboxRoute, parseOrsRoute, parseRoutePoint,
+  mapboxRequest, orsRequest, parseMapboxRoute, parseOrsBase, parseOrsRoute, parseRoutePoint,
 } from "../src/lib/routing.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -63,7 +63,9 @@ for (const trip of runnable) {
   for (const provider of providers) {
     for (const mode of modes) {
       const key = (provider === "ors" ? process.env.ORS_API_KEY : process.env.MAPBOX_ACCESS_TOKEN).trim();
-      const built = provider === "ors" ? orsRequest(trip.from, trip.to, mode, key) : mapboxRequest(trip.from, trip.to, mode, key);
+      const built = provider === "ors"
+        ? orsRequest(trip.from, trip.to, mode, key, parseOrsBase(process.env.ORS_BASE_URL))
+        : mapboxRequest(trip.from, trip.to, mode, key);
       try {
         const response = await fetch(built.url, { ...built.init, signal: AbortSignal.timeout(20000) });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

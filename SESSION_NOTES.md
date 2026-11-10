@@ -383,3 +383,17 @@ https://github.com/official-pam/Meta_market_assistant must never be changed.
   could not be extracted; recheck before relying.
 - Gates: npm test 121/121, lint 0 errors (8 pre-existing img warnings),
   build green incl. /api/buyer/route. No live provider calls made.
+
+## 10 November 2026 - R part two addition (ORS base, order, errors)
+
+- Verified in the official ORS forum announcement (28 Apr 2026):
+  directions moved to api.heigit.org/openrouteservice/v2/directions and
+  api.openrouteservice.org shut down 02-06 Nov 2026. Default base changed
+  accordingly; ORS_BASE_URL setting added (https only, else default).
+- Coordinates longitude-first everywhere, with a swapped-order test that
+  fails with a clear message and a Kubwa order test on all 4 builders
+  plus both live service paths.
+- 401/403/404 and Mapbox NoRoute fall back silently; 429 waits 1s then
+  falls back. No key in any outcome. No live provider calls made.
+- Gates: npm test 126/126, lint 0 errors (8 pre-existing img warnings),
+  build green.

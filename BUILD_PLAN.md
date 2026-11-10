@@ -194,6 +194,7 @@ Agreed build order (owner, 7 November 2026): R part one, then the key and image 
   8. A comparison script reads trips from a JSON file the owner fills in (start and shop coordinates, optional note of the real time known), runs them on each provider with a key, walking and driving, and prints only distances, times and differences; it makes no request without telling the owner first.
   9. Before relying on either provider, their current terms and pricing pages are read and reported (commercial use, showing routes on an OpenStreetMap map, free limits), quoting nothing long, with no choice made for the owner.
   10. Tests with a fake provider cover fallback, caching, caps, invalid coordinates, provider errors and no key printing.
+  11. Addition (owner, 10 November 2026): ORS uses its current verified base address as a setting (ORS_BASE_URL); coordinate order is longitude-first with tests; 401/403/429/no-road answers fall back to straight-line distance with no key printing.
 
 ## 7. Later, not now (parked ideas, so they are not forgotten)
 
